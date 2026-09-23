@@ -2273,6 +2273,7 @@ export function SeoPage({ language, data }: Pick<PageProps, "language" | "data">
     : null;
   const passed = seo?.passed ?? 0;
   const measurable = seo?.checked ?? 0;
+  const checklistPercent = measurable ? Math.round((passed / measurable) * 100) : 0;
   const scoredFactors =
     performance?.factors.filter((factor) => factor.available).length ?? 0;
 
@@ -2414,8 +2415,13 @@ export function SeoPage({ language, data }: Pick<PageProps, "language" | "data">
                   )}
                 </p>
               </div>
-              <strong>
-                {measurable ? Math.round((passed / measurable) * 100) : 0}%
+              {/* Green whatever the score read "all good" at 50%. */}
+              <strong
+                className={
+                  checklistPercent >= 80 ? "" : checklistPercent >= 50 ? "warn" : "bad"
+                }
+              >
+                {checklistPercent}%
               </strong>
             </header>
             <div className="seo-check-list" role="list">

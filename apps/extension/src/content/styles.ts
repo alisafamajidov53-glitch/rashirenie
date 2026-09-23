@@ -523,6 +523,7 @@ button, input, textarea, select { font: inherit; }
 .cp-momentum-list > article:first-child { border-top: 0; }
 .cp-momentum-list > article.current { margin: 0 -5px; padding-right: 5px; padding-left: 5px; border-radius: 9px; background: #211b31; }
 .cp-rank { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 6px; color: #998cff; background: #2b253d; font-size: 11px; font-weight: 900; }
+.cp-panel[data-theme="light"] .cp-rank { color: #4a3ca6; background: #ebe9ff; }
 .cp-momentum-list img { width: 64px; height: 36px; border-radius: 7px; object-fit: cover; background: #24202c; }
 .cp-momentum-main { min-width: 0; }
 .cp-momentum-title {

@@ -217,7 +217,7 @@ nav button em {
 .sidebar-bottom > span {
   display: block;
   margin-top: 13px;
-  color: #54525e;
+  color: var(--muted-2);
   font-size: 10px;
   text-align: center;
 }
@@ -424,7 +424,7 @@ h2 {
   padding: 0 12px;
   border: 0;
   border-radius: 8px;
-  color: #8b8996;
+  color: var(--muted);
   background: transparent;
   cursor: pointer;
   font-size: 11px;
@@ -608,7 +608,8 @@ html[data-theme="light"] .settings-savebar {
   height: 6px;
   overflow: hidden;
   border-radius: 8px;
-  background: #282832;
+  /* A fixed #282832 track read as a black bar on the light cards. */
+  background: color-mix(in srgb, var(--text) 9%, transparent);
 }
 .secondary-metrics u {
   display: block;
@@ -649,20 +650,21 @@ html[data-theme="light"] .settings-savebar {
   border-radius: 12px;
 }
 .decision-kpis span {
-  color: #8a8692;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 750;
 }
 .decision-kpis strong {
   display: block;
   margin: 8px 0 7px;
-  color: #f0ecf7;
+  /* Was #f0ecf7: white-on-white (1.1:1) once this block opened in light. */
+  color: var(--text);
   font-size: 23px;
   letter-spacing: -0.6px;
 }
 .decision-kpis p {
   margin: 0;
-  color: #716d79;
+  color: var(--muted-2);
   font-size: 11px;
   line-height: 1.45;
 }
@@ -709,14 +711,17 @@ html[data-theme="light"] .settings-savebar {
 .signal-list p {
   overflow: hidden;
   margin: 5px 0 0;
-  color: #85818d;
+  color: var(--muted-2);
   font-size: 11px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .signal-list article > b {
-  color: #9d91e6;
+  color: var(--purple-soft);
   font-size: 12px;
+}
+html[data-theme="light"] .signal-list article > b {
+  color: var(--accent-ink);
 }
 .signal-list article > button {
   height: 35px;
@@ -880,7 +885,7 @@ html[data-theme="light"] .settings-savebar {
   gap: 10px;
 }
 .video-primary > em {
-  color: #716a91;
+  color: var(--muted-2);
   font-size: 10px;
   font-style: normal;
   font-weight: 900;
@@ -1019,11 +1024,18 @@ html[data-theme="light"] .settings-savebar {
 }
 .subscriber-net-badge {
   padding: 9px 12px;
-  border: 1px solid currentColor;
+  border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
   border-radius: 10px;
-  background: #15151b;
+  /* Was a fixed #15151b: a black pill with dark text in the light theme. */
+  background: color-mix(in srgb, currentColor 7%, transparent);
   font-size: 13px;
   font-weight: 900;
+}
+.subscriber-net-badge.positive {
+  color: var(--green);
+}
+.subscriber-net-badge.negative {
+  color: var(--red);
 }
 .subscriber-summary-grid {
   display: grid;
@@ -1133,6 +1145,13 @@ html[data-theme="light"] .settings-savebar {
 .subscriber-source-list a:hover {
   color: #fff;
   background: rgba(255, 255, 255, 0.07);
+}
+html[data-theme="light"] .subscriber-source-list a {
+  color: var(--accent-ink);
+}
+html[data-theme="light"] .subscriber-source-list a:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--purple) 8%, transparent);
 }
 .subscriber-empty {
   margin: 0;
@@ -1493,6 +1512,14 @@ html[data-theme="light"] .ai-link-hint.muted {
   color: #fff;
   background: rgba(255, 255, 255, 0.06);
 }
+html[data-theme="light"]
+  :is(.composer-settings b, .composer-settings button, .youtube-key-setting a) {
+  color: var(--accent-ink);
+}
+html[data-theme="light"] .composer-settings button:hover {
+  color: var(--text);
+  background: color-mix(in srgb, var(--purple) 8%, transparent);
+}
 .ai-generate {
   width: 100%;
   height: 50px;
@@ -1574,7 +1601,7 @@ html[data-theme="light"] .ai-link-hint.muted {
 }
 .ai-placeholder strong {
   margin-top: 17px;
-  color: #d6d1de;
+  color: var(--text);
   font-size: 15px;
 }
 .ai-placeholder span {
@@ -2151,7 +2178,7 @@ html[data-theme="light"] .ai-link-hint.muted {
   padding: 6px 9px;
   border: 0;
   border-radius: 9px;
-  color: #8d8998;
+  color: var(--muted);
   background: transparent;
   cursor: pointer;
   text-align: left;
@@ -2175,7 +2202,7 @@ html[data-theme="light"] .ai-link-hint.muted {
   font-weight: 850;
 }
 .format-switch button span {
-  color: #777380;
+  color: var(--muted-2);
   font-size: 10px;
   font-weight: 500;
 }
@@ -2965,7 +2992,7 @@ html[data-theme="light"] .range-reset {
 }
 .align-row > span {
   margin-right: auto;
-  color: #aaa6b2;
+  color: var(--muted);
   font-size: 10px;
 }
 .align-row button {
@@ -4957,7 +4984,7 @@ html[data-theme="light"] .planner-column.drop-target {
   font-size: 11px;
   line-height: 1.45;
 }
-.score-factors .unavailable {
+.score-factors .unavailable :is(span, b, progress) {
   opacity: 0.7;
 }
 .seo-checklist-card {
@@ -4985,6 +5012,12 @@ html[data-theme="light"] .planner-column.drop-target {
   color: var(--green);
   font-size: 22px;
   font-variant-numeric: tabular-nums;
+}
+.seo-checklist-card > header > strong.warn {
+  color: var(--orange);
+}
+.seo-checklist-card > header > strong.bad {
+  color: var(--red);
 }
 .seo-check {
   display: grid;
@@ -5141,7 +5174,8 @@ html[data-theme="light"] .api-limit-card > summary > span {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow: hidden;
-  color: #b9b3c0;
+  /* A fixed #b9b3c0 was 1.85:1 on the light theme's cards. */
+  color: color-mix(in srgb, var(--text) 72%, transparent);
   /* 9px was below any readable floor — these are the only labels on the
      dashboard the user has to read to interpret the bars next to them. */
   overflow-wrap: anywhere;
@@ -6271,7 +6305,7 @@ h2 {
 }
 
 .video-table-head {
-  color: #6f7281;
+  color: var(--muted-2);
   letter-spacing: 0.55px;
 }
 
@@ -7773,7 +7807,7 @@ html[data-theme="light"] .ai-idea-save:not(.saved) {
 }
 .comparison-dates span {
   padding: 0 10px;
-  opacity: 0.6;
+  color: var(--muted-2);
 }
 .comparison-grid strong {
   display: block;
@@ -8304,7 +8338,13 @@ html[data-theme="light"] {
   --accent-ink: color-mix(in srgb, var(--purple) 68%, #222b40);
   --green: #147b58;
   --red: #ba3451;
-  --muted-2: #687184;
+  /* The dark theme's #ffbd70 is ~1.7:1 on white; this matches the widget's
+     light amber and keeps warning text readable. */
+  --orange: #9a5b00;
+  --muted-2: #5f6779;
+}
+html[data-theme="light"] .hook-risk b {
+  color: #fff;
 }
 
 html[data-theme="light"]
@@ -8341,7 +8381,8 @@ html[data-theme="light"]
     .connection-actions > button,
     /* The row actions were missing from this list, so three near-black chips
        sat on every row of an otherwise white table. */ .row-actions button,
-    .row-actions a
+    .row-actions a,
+    .signal-list article > button
   ) {
   color: #394154;
   border-color: var(--glass-border);
@@ -8361,7 +8402,8 @@ html[data-theme="light"]
     .export-menu button,
     .asset-heading button,
     .row-actions button,
-    .row-actions a
+    .row-actions a,
+    .signal-list article > button
   ):hover:not(:disabled) {
   color: #242536;
   border-color: color-mix(in srgb, var(--purple) 35%, white);
@@ -8394,6 +8436,31 @@ html[data-theme="light"] .status-chip.cooling {
 html[data-theme="light"] .status-chip.stable {
   color: #4c5466;
   background: #edeff4;
+}
+/* The decision centre and the subscriber list drew the same dark tiles. */
+html[data-theme="light"] .confidence-chip,
+html[data-theme="light"] .signal-list article.positive > span {
+  color: #0f6a4b;
+  border-color: #b6e2ce;
+  background: #e0f4ea;
+  box-shadow: none;
+}
+html[data-theme="light"] .signal-list article > span,
+html[data-theme="light"] .subscriber-source-list > article > em {
+  color: #4a3ca6;
+  background: #ebe9ff;
+}
+html[data-theme="light"] .signal-list article.warning > span {
+  color: #8a4712;
+  background: #fdeddc;
+}
+html[data-theme="light"] .ai-placeholder > div {
+  color: #4a3ca6;
+  background: #ebe9ff;
+}
+html[data-theme="light"] .settings-icon.routing {
+  color: #0f6a4b;
+  background: #e0f4ea;
 }
 
 html[data-theme="light"]
@@ -8435,6 +8502,9 @@ html[data-theme="light"] .provider-mode-grid button.active {
 
 html[data-theme="light"] :is(.storage-note strong, .storage-note span) {
   color: #296750;
+}
+html[data-theme="light"] .storage-note > i {
+  color: #fff;
 }
 
 html[data-theme="light"]
@@ -8983,18 +9053,21 @@ html[data-theme="light"] .cohort-controls .filter-tabs button:not(.active):hover
   .analytics-disclosure > .secondary-metrics {
     grid-template-columns: 1fr;
   }
+  /* Views, speed and the one action share a line: a full-width button row
+     made each of the three videos ~210px tall on a phone. */
   .video-table-preview .analytics-video-row {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
   }
   .video-table-preview .video-table-head {
     display: none;
   }
   .video-table-preview .row-actions {
-    grid-column: 1 / -1;
+    grid-column: auto;
+    align-self: center;
   }
   .video-table-preview .row-actions > button:first-child {
-    width: 100%;
     min-height: 40px;
+    padding-inline: 12px;
   }
   .video-table-preview .video-primary {
     grid-template-columns: 20px 64px minmax(0, 1fr);

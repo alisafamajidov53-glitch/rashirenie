@@ -608,7 +608,10 @@ function InteractiveChart({
           </strong>
           <p>
             {tr(language, "В среднем за день", "Daily average")}:{" "}
-            {exactNumber(average, language, 1)} {metrics[metric].unit}
+            {/* "4 019,7 views a day": a tenth only means something for small
+                averages such as net subscribers. */}
+            {exactNumber(average, language, Math.abs(average) >= 100 ? 0 : 1)}{" "}
+            {metrics[metric].unit}
             {periodChange !== null && (
               <> · {tr(language, "к прошлому периоду", "vs previous period")}</>
             )}
@@ -4651,8 +4654,12 @@ function App() {
                           <b>
                             +{compact(intelligence.fastest.observedViewsLastHour)} /{" "}
                             {intelligence.fastest.observedMinutes >= 60
-                              ? "60m"
-                              : `${intelligence.fastest.observedMinutes}m`}
+                              ? tr(language, "60 мин", "60m")
+                              : tr(
+                                  language,
+                                  `${intelligence.fastest.observedMinutes} мин`,
+                                  `${intelligence.fastest.observedMinutes}m`,
+                                )}
                           </b>
                           <button onClick={() => analyzeVideo(intelligence.fastest!)}>
                             {tr(language, "Усилить", "Boost")}

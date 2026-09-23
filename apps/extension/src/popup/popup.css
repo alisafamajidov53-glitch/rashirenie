@@ -1309,6 +1309,16 @@ header p {
 html[data-theme="light"] .redirect-uri code {
   color: #3a3446;
 }
+/* The dark theme's lavender labels were ~2–2.8:1 on the light sign-in card,
+   and the setup link's hover turned it near-white. */
+html[data-theme="light"] .eyebrow,
+html[data-theme="light"] .setup-link {
+  color: var(--accent-contrast, #4c34c4);
+  text-shadow: none;
+}
+html[data-theme="light"] .setup-link:hover {
+  color: #2b2446;
+}
 html[data-theme="light"] .redirect-copy {
   color: #33303c;
   background: rgba(255, 255, 255, 0.7);
@@ -1321,6 +1331,7 @@ html[data-theme="light"] {
   color-scheme: light;
   color: #222532;
   background: #eef2f7;
+  --popup-muted: #5d6576;
   --popup-canvas: #eef2f7;
   --popup-glass-rgb: 249, 251, 255;
   --popup-line: rgba(60, 67, 86, 0.13);
@@ -1383,6 +1394,29 @@ html[data-theme="light"] footer {
 }
 html[data-theme="light"] footer button {
   color: var(--accent-contrast, #4c34c4);
+}
+/* Secondary text kept the dark theme's greys (#8d8796–#aaa6b6), which
+   measured 1.8–3.3:1 on the light glass. */
+html[data-theme="light"]
+  :is(
+    .channel-copy span,
+    .signin p,
+    .signin small,
+    .quick-settings label,
+    .metric-grid span,
+    .section-title span,
+    .video-row span,
+    .subscriber-flow-title,
+    .subscriber-flow-stat small,
+    .redirect-uri-label,
+    .videos-empty
+  ) {
+  color: var(--popup-muted);
+}
+/* Same light tile as the dashboard's rank and status chips. */
+html[data-theme="light"] .video-rank {
+  color: #4a3ca6;
+  background: #ebe9ff;
 }
 html[data-theme="light"] footer button:hover:not(:disabled):not(.dashboard-link) {
   color: #2b2446;
