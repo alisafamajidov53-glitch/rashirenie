@@ -5885,6 +5885,12 @@ nav button em {
   background: color-mix(in srgb, var(--purple) 32%, transparent);
   box-shadow: 0 3px 10px color-mix(in srgb, var(--purple) 18%, transparent);
 }
+/* The dark theme's pale lavender label was near-invisible on the light sidebar. */
+html[data-theme="light"] nav button em {
+  color: var(--accent-contrast, #4c34c4);
+  background: color-mix(in srgb, var(--purple) 14%, white);
+  box-shadow: none;
+}
 
 .topbar {
   height: 78px;

@@ -2670,6 +2670,8 @@ const RealtimeWidget = memo(function RealtimeWidget({
               ref={editToggleRef}
               className={`cp-icon-button${editing ? " active" : ""}`}
               onClick={() => setEditing((value) => !value)}
+              // There are no blocks to arrange until there is data to show.
+              disabled={!dashboard && !editing}
               aria-pressed={editing}
               aria-label={ui(
                 language,
@@ -3669,6 +3671,13 @@ function App() {
   const signingInRef = useRef(false);
   const [dashboardError, setDashboardError] = useState("");
   const [error, setError] = useState("");
+  // Confirmation for panel actions; errors keep their own red banner.
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(""), 2_600);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const [autoMediaNotice, setAutoMediaNotice] = useState<{
     fileName: string;
     status: "analyzing" | "ready" | "error";
@@ -3679,6 +3688,9 @@ function App() {
     value: string;
   } | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
+  // A requested analysis lands below a long form; bring the result into view.
+  const resultRef = useRef<HTMLDivElement | null>(null);
+  const revealResultRef = useRef(false);
   const launcherRef = useRef<HTMLButtonElement | null>(null);
   const panelFocusReturnRef = useRef<HTMLElement | null>(null);
   const confirmModalRef = useRef<HTMLElement | null>(null);
@@ -4100,6 +4112,7 @@ function App() {
             thumbnailMoments: analysis.contentInsights.thumbnailMoments,
           }).slice(0, 12_000);
         }
+        revealResultRef.current = !automatic;
         setResult(analysis);
         if (automatic && media)
           setAutoMediaNotice({
@@ -4769,6 +4782,16 @@ function App() {
   }, [open]);
 
   useEffect(() => {
+    if (!result || !revealResultRef.current) return;
+    revealResultRef.current = false;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    resultRef.current?.scrollIntoView({
+      block: "start",
+      behavior: reduced ? "auto" : "smooth",
+    });
+  }, [result]);
+
+  useEffect(() => {
     if (!signedIn) return;
     void loadDashboard();
     const refreshVisibleDashboard = () => {
@@ -4779,9 +4802,12 @@ function App() {
       Math.max(60, uiSettings.analyticsRefreshSeconds) * 1_000,
     );
     document.addEventListener("visibilitychange", refreshVisibleDashboard);
+    // Back online: refresh now instead of waiting out the polling interval.
+    window.addEventListener("online", refreshVisibleDashboard);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshVisibleDashboard);
+      window.removeEventListener("online", refreshVisibleDashboard);
     };
   }, [signedIn, loadDashboard, uiSettings.analyticsRefreshSeconds]);
 
@@ -4978,8 +5004,44 @@ function App() {
   // plain click handler as a hook. Renamed so the "use" prefix keeps meaning
   // "this is a hook" everywhere in the file.
   function applySuggestion(kind: "title" | "description", value: string) {
+    // Outside Studio there is no field to replace, so the confirmation dialog
+    // only ever ended in "field not found, copied instead". Copy directly.
+    if (!isStudioPage) {
+      copySuggestion(value);
+      return;
+    }
     confirmFocusReturnRef.current = focusedUiElement();
     setPendingSuggestion({ kind, value });
+  }
+
+  function copySuggestion(value: string, fieldMissing = false) {
+    void navigator.clipboard
+      .writeText(value)
+      .then(() => {
+        setError("");
+        setNotice(
+          fieldMissing
+            ? ui(
+                interfaceLanguage,
+                "Поле Studio не найдено — вариант скопирован в буфер обмена",
+                "The Studio field was not found — the suggestion was copied",
+              )
+            : ui(
+                interfaceLanguage,
+                "Скопировано в буфер обмена",
+                "Copied to clipboard",
+              ),
+        );
+      })
+      .catch(() =>
+        setError(
+          ui(
+            interfaceLanguage,
+            "Браузер запретил доступ к буферу обмена. Выделите текст и скопируйте вручную.",
+            "The browser denied clipboard access. Select the text and copy it manually.",
+          ),
+        ),
+      );
   }
 
   function confirmSuggestion() {
@@ -4989,28 +5051,22 @@ function App() {
     setContext({ ...context, [kind]: value });
     setPendingSuggestion(null);
     if (!applied) {
-      void navigator.clipboard
-        .writeText(value)
-        .then(() =>
-          setError(
-            ui(
-              interfaceLanguage,
-              "Поле Studio не найдено: вариант скопирован в буфер обмена.",
-              "The Studio field was not found, so the suggestion was copied to the clipboard.",
-            ),
-          ),
-        )
-        .catch(() =>
-          setError(
-            ui(
-              interfaceLanguage,
-              "Поле Studio не найдено, и браузер запретил доступ к буферу обмена.",
-              "The Studio field was not found, and the browser denied clipboard access.",
-            ),
-          ),
-        );
+      copySuggestion(value, true);
     } else {
       setError("");
+      setNotice(
+        kind === "title"
+          ? ui(
+              interfaceLanguage,
+              "Заголовок вставлен в Studio",
+              "Title inserted in Studio",
+            )
+          : ui(
+              interfaceLanguage,
+              "Описание вставлено в Studio",
+              "Description inserted in Studio",
+            ),
+      );
     }
   }
 
@@ -5752,9 +5808,14 @@ function App() {
               )}
             </div>
             {error && <div className="cp-error">{error}</div>}
+            {notice && !error && (
+              <div className="cp-notice" role="status">
+                {notice}
+              </div>
+            )}
 
             {result && (
-              <div className="cp-result">
+              <div className="cp-result" ref={resultRef}>
                 <div className="cp-result-head">
                   <strong>
                     {ui(interfaceLanguage, "Результат анализа", "Analysis result")}
@@ -5819,7 +5880,9 @@ function App() {
                         className="cp-use"
                         onClick={() => applySuggestion("title", title)}
                       >
-                        {ui(interfaceLanguage, "вставить", "insert")}
+                        {isStudioPage
+                          ? ui(interfaceLanguage, "вставить", "insert")
+                          : ui(interfaceLanguage, "копировать", "copy")}
                       </button>
                     </div>
                   ))}
@@ -5864,7 +5927,9 @@ function App() {
                       className="cp-use"
                       onClick={() => applySuggestion("description", result.description)}
                     >
-                      {ui(interfaceLanguage, "вставить", "insert")}
+                      {isStudioPage
+                        ? ui(interfaceLanguage, "вставить", "insert")
+                        : ui(interfaceLanguage, "копировать", "copy")}
                     </button>
                   </div>
                   <div className="cp-description">{result.description}</div>

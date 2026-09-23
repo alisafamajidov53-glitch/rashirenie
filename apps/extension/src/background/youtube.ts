@@ -206,7 +206,15 @@ async function youtubeFetch<T>(
       : new DOMException("The operation was aborted", "AbortError");
   }
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
+  // A reasoned abort: without one fetch rejects with "signal is aborted
+  // without reason", which is what the widget used to show for a slow network.
+  const timeout = setTimeout(
+    () =>
+      controller.abort(
+        new DOMException("YouTube API request timed out", "TimeoutError"),
+      ),
+    20_000,
+  );
   const abort = () => controller.abort();
   externalSignal?.addEventListener("abort", abort, { once: true });
   try {

@@ -444,8 +444,7 @@ async function runRealtimeCollection(): Promise<RealtimeCollectorStatus | null> 
       const settings = await getSettings().catch(() => null);
       if (generation !== authGeneration) throw error;
       const english = settings?.interfaceLanguage === "en";
-      let message =
-        error instanceof Error ? error.message : "Realtime collection failed";
+      let message = userFacingError(error, english ? "en" : "ru");
       const limitKind = youtubeLimitKind(error);
       if (limitKind) {
         const resetInMs =
@@ -479,6 +478,29 @@ async function runRealtimeCollection(): Promise<RealtimeCollectorStatus | null> 
     // guard against ever nulling out a newer in-flight collection.
     if (realtimeCollection === task) realtimeCollection = null;
   }
+}
+
+/**
+ * The message a person sees for a failure. A dropped connection surfaced as
+ * "Failed to fetch" and a slow one as "signal is aborted without reason";
+ * both now say what happened and that nothing needs to be done.
+ */
+function userFacingError(error: unknown, language: SupportedLanguage): string {
+  const english = language === "en";
+  if (error instanceof DOMException && error.name === "TimeoutError") {
+    return english
+      ? "YouTube did not respond in time. The data will refresh on the next attempt."
+      : "YouTube не ответил вовремя. Данные обновятся при следующей попытке.";
+  }
+  if (
+    error instanceof TypeError &&
+    /failed to fetch|networkerror|load failed|network/i.test(error.message)
+  ) {
+    return english
+      ? "No connection to YouTube. Check your internet connection — the data will refresh on its own."
+      : "Нет связи с YouTube. Проверьте интернет — данные обновятся сами.";
+  }
+  return safeErrorMessage(error, english ? "Unknown error" : "Неизвестная ошибка");
 }
 
 function isUnauthorizedGoogleError(error: unknown): boolean {
@@ -1085,13 +1107,16 @@ chrome.runtime.onMessage.addListener(
         });
         sendResponse({ ok: true, data });
       })
-      .catch((error: unknown) => {
-        const safeError = safeErrorMessage(error, "Неизвестная ошибка");
+      .catch(async (error: unknown) => {
+        const language = await getSettings()
+          .then((settings) => settings.interfaceLanguage)
+          .catch((): SupportedLanguage => "ru");
+        const safeError = userFacingError(error, language);
         debugLog(message.type, {
           ok: false,
           from: context,
           ms: Math.round(performance.now() - startedAt),
-          error: safeError,
+          error: safeErrorMessage(error),
         });
         sendResponse({ ok: false, error: safeError });
       });

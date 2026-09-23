@@ -2925,9 +2925,12 @@ function App() {
     );
     const onVisibility = () => void poll();
     document.addEventListener("visibilitychange", onVisibility);
+    // Back online: refresh now instead of waiting out the polling interval.
+    window.addEventListener("online", onVisibility);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("online", onVisibility);
     };
   }, [signedIn, analyticsRefreshSeconds]);
 

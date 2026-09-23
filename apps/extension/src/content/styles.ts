@@ -224,6 +224,11 @@ button, input, textarea, select { font: inherit; }
 .cp-primary:disabled, .cp-secondary:disabled { opacity: .55; cursor: not-allowed; transform: none; }
 .cp-primary[aria-busy="true"]:disabled, .cp-secondary[aria-busy="true"]:disabled { cursor: progress; }
 .cp-error { margin-top: 9px; padding: 9px 10px; border: 1px solid #632d37; border-radius: 9px; color: #ffaaa9; background: #36171c; font-size: 11px; line-height: 1.4; }
+.cp-notice {
+  margin-top: 9px; padding: 9px 10px; border: 1px solid color-mix(in srgb, var(--cp-green) 34%, transparent); border-radius: 9px;
+  color: var(--cp-green); background: color-mix(in srgb, var(--cp-green) 10%, transparent); font-size: var(--cp-fs-xs); line-height: 1.4;
+}
+.cp-panel[data-theme="light"] .cp-notice { color: #11693f; border-color: #bfe6d0; background: #e5f6ec; }
 .cp-result { margin-top: 14px; }
 .cp-result-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }
 .cp-result-head strong { font-size: 11px; }

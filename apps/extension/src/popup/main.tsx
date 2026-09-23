@@ -915,7 +915,8 @@ function App() {
               <span>{tr(language, "Всё время", "All time")}</span>
               <b>{compact(data.channel.views)}</b>
               <em>
-                {compact(total28)} {tr(language, "за 28 дней", "in 28 days")}
+                {/* "за 28 дней" wrapped onto a second line in a third of the popup. */}
+                {compact(total28)} · {tr(language, "28 дн.", "28d")}
               </em>
             </article>
           </section>
