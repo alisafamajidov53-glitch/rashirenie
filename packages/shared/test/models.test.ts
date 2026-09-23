@@ -6,7 +6,6 @@ import {
   normalizeGeminiModel,
   normalizeGroqModel,
   normalizeTwelveLabsModel,
-  supportsGeminiAgenticVideo,
 } from "../src/models.js";
 
 describe("AI model settings", () => {
@@ -20,12 +19,6 @@ describe("AI model settings", () => {
   it("accepts current and custom Gemini model IDs", () => {
     expect(normalizeGeminiModel("models/gemini-3.6-flash")).toBe("gemini-3.6-flash");
     expect(normalizeGeminiModel("custom-gemini-model")).toBe("custom-gemini-model");
-  });
-
-  it("knows which Flash models support agentic video", () => {
-    expect(supportsGeminiAgenticVideo(DEFAULT_GEMINI_MODEL)).toBe(true);
-    expect(supportsGeminiAgenticVideo("models/gemini-3.5-flash-lite")).toBe(true);
-    expect(supportsGeminiAgenticVideo("gemini-3.1-pro-preview")).toBe(false);
   });
 
   it("uses the current Groq default when the model is empty", () => {

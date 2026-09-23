@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  bucketAverage,
   DEFAULT_EXTENSION_SETTINGS,
   diffExtensionSettings,
   formatMetric,
@@ -12,6 +13,7 @@ import {
   isGoogleClientId,
   normalizeExtensionSettings,
   realtimeWindowCoverage,
+  smoothTrendPath,
   type AiProvider,
   type DashboardData,
   type ExtensionSettings,
@@ -33,6 +35,11 @@ function tr(language: SupportedLanguage, ru: string, en: string): string {
   return language === "ru" ? ru : en;
 }
 
+/**
+ * The 28-day trend, drawn like the on-page widget's chart: smoothed, on a zero
+ * baseline, with the latest day marked. The popup used to draw its own jagged
+ * polyline with a different scale.
+ */
 function Sparkline({
   values,
   language,
@@ -40,45 +47,44 @@ function Sparkline({
   values: number[];
   language: SupportedLanguage;
 }) {
+  const gradientId = `popup-trend-${useId()}`;
   if (values.length < 2)
     return (
       <div className="empty-chart">
         {tr(language, "Недостаточно данных", "Not enough data")}
       </div>
     );
-  const width = 330;
-  const height = 68;
-  const max = Math.max(...values, 1);
-  const points = values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * width;
-      const y = height - (value / max) * (height - 8) - 4;
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const { line, area, last } = smoothTrendPath(bucketAverage(values, 48), 330, 68);
   return (
     <svg
       className="sparkline"
-      viewBox={`0 0 ${width} ${height}`}
+      viewBox="0 0 330 68"
+      preserveAspectRatio="none"
       aria-label={tr(language, "Просмотры за 28 дней", "Views over the last 28 days")}
       role="img"
     >
       <defs>
-        <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop className="spark-stop" offset="0%" stopOpacity=".3" />
           <stop className="spark-stop" offset="100%" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <polygon
-        points={`0,${height} ${points} ${width},${height}`}
-        fill="url(#spark-fill)"
-      />
-      <polyline
-        points={points}
+      <path d={area} fill={`url(#${gradientId})`} />
+      <path
+        d={line}
         fill="none"
         className="spark-line"
-        strokeWidth="3"
+        strokeWidth="2.5"
         strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <line
+        className="spark-now"
+        x1={last.x}
+        x2={last.x}
+        y1={last.y}
+        y2={68}
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );

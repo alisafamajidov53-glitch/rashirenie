@@ -46,6 +46,8 @@ import {
   buildChannelStyleContext,
   youtubeVideoIdFromUrl,
   DASHBOARD_PAGE_REQUEST_KEY,
+  TITLE_MODE_OPTIONS,
+  TONE_OPTIONS,
   readDashboardPageRequest,
   type ContentCohort,
   type VideoContext,
@@ -4992,29 +4994,11 @@ function App() {
                           setTitleMode(event.target.value as TitleGenerationMode)
                         }
                       >
-                        <option value="seo">SEO</option>
-                        <option value="viral">
-                          {tr(language, "Вирусный", "Viral")}
-                        </option>
-                        <option value="curiosity">
-                          {tr(language, "Любопытство", "Curiosity")}
-                        </option>
-                        <option value="clean">{tr(language, "Чистый", "Clean")}</option>
-                        <option value="educational">
-                          {tr(language, "Обучающий", "Educational")}
-                        </option>
-                        <option value="story">
-                          {tr(language, "История", "Story")}
-                        </option>
-                        <option value="challenge">
-                          {tr(language, "Челлендж", "Challenge")}
-                        </option>
-                        <option value="versus">
-                          {tr(language, "Сравнение", "Versus")}
-                        </option>
-                        <option value="documentary">
-                          {tr(language, "Документальный", "Documentary")}
-                        </option>
+                        {TITLE_MODE_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label[language]}
+                          </option>
+                        ))}
                       </select>
                     </label>
                     <label>
@@ -5023,49 +5007,11 @@ function App() {
                         value={aiTone}
                         onChange={(event) => setAiTone(event.target.value)}
                       >
-                        <option value="professional">
-                          {tr(language, "Профессиональный", "Professional")}
-                        </option>
-                        <option value="viral">
-                          {tr(language, "Вирусный", "Viral")}
-                        </option>
-                        <option value="emotional">
-                          {tr(language, "Эмоциональный", "Emotional")}
-                        </option>
-                        <option value="friendly">
-                          {tr(language, "Дружелюбный", "Friendly")}
-                        </option>
-                        <option value="energetic">
-                          {tr(language, "Энергичный", "Energetic")}
-                        </option>
-                        <option value="calm">
-                          {tr(language, "Спокойный", "Calm")}
-                        </option>
-                        <option value="humorous">
-                          {tr(language, "Юмористический", "Humorous")}
-                        </option>
-                        <option value="educational">
-                          {tr(language, "Обучающий", "Educational")}
-                        </option>
-                        <option value="entertaining">
-                          {tr(language, "Развлекательный", "Entertaining")}
-                        </option>
-                        <option value="dramatic">
-                          {tr(language, "Драматичный", "Dramatic")}
-                        </option>
-                        <option value="minimalist">
-                          {tr(language, "Минималистичный", "Minimalist")}
-                        </option>
-                        <option value="provocative">
-                          {tr(
-                            language,
-                            "Провокационный без обмана",
-                            "Provocative, not misleading",
-                          )}
-                        </option>
-                        <option value="documentary">
-                          {tr(language, "Документальный", "Documentary")}
-                        </option>
+                        {TONE_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label[language]}
+                          </option>
+                        ))}
                       </select>
                     </label>
                   </div>

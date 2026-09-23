@@ -59,7 +59,9 @@ import {
   removeWidgetEntry,
   resolvePanelLayout,
   smoothTrendPath,
+  TITLE_MODE_OPTIONS,
   toggleDockMetric,
+  TONE_OPTIONS,
   toPublicSettings,
   dockMetricLabel,
   WIDGET_SECTION_IDS,
@@ -5602,52 +5604,11 @@ function App() {
                     setContext({ ...context, tone: event.target.value })
                   }
                 >
-                  <option value="professional">
-                    {ui(interfaceLanguage, "Экспертный", "Expert")}
-                  </option>
-                  <option value="viral">
-                    {ui(interfaceLanguage, "Вирусный", "Viral")}
-                  </option>
-                  <option value="emotional">
-                    {ui(interfaceLanguage, "Эмоциональный", "Emotional")}
-                  </option>
-                  <option value="energetic">
-                    {ui(interfaceLanguage, "Энергичный", "Energetic")}
-                  </option>
-                  <option value="friendly">
-                    {ui(interfaceLanguage, "Дружелюбный", "Friendly")}
-                  </option>
-                  <option value="minimal">
-                    {ui(interfaceLanguage, "Лаконичный", "Minimal")}
-                  </option>
-                  <option value="calm">
-                    {ui(interfaceLanguage, "Спокойный", "Calm")}
-                  </option>
-                  <option value="humorous">
-                    {ui(interfaceLanguage, "Юмористический", "Humorous")}
-                  </option>
-                  <option value="educational">
-                    {ui(interfaceLanguage, "Образовательный", "Educational")}
-                  </option>
-                  <option value="entertaining">
-                    {ui(interfaceLanguage, "Развлекательный", "Entertaining")}
-                  </option>
-                  <option value="dramatic">
-                    {ui(interfaceLanguage, "Драматичный", "Dramatic")}
-                  </option>
-                  <option value="minimalist">
-                    {ui(interfaceLanguage, "Минималистичный", "Minimalist")}
-                  </option>
-                  <option value="documentary">
-                    {ui(interfaceLanguage, "Документальный", "Documentary")}
-                  </option>
-                  <option value="provocative">
-                    {ui(
-                      interfaceLanguage,
-                      "Провокационный без обмана",
-                      "Provocative, not misleading",
-                    )}
-                  </option>
+                  {TONE_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label[interfaceLanguage]}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label className="cp-field">
@@ -5663,31 +5624,11 @@ function App() {
                     })
                   }
                 >
-                  <option value="seo">SEO</option>
-                  <option value="viral">
-                    {ui(interfaceLanguage, "Вирусный", "Viral")}
-                  </option>
-                  <option value="curiosity">
-                    {ui(interfaceLanguage, "Любопытство", "Curiosity")}
-                  </option>
-                  <option value="clean">
-                    {ui(interfaceLanguage, "Чистый", "Clean")}
-                  </option>
-                  <option value="educational">
-                    {ui(interfaceLanguage, "Обучающий", "Educational")}
-                  </option>
-                  <option value="story">
-                    {ui(interfaceLanguage, "История", "Story")}
-                  </option>
-                  <option value="challenge">
-                    {ui(interfaceLanguage, "Челлендж", "Challenge")}
-                  </option>
-                  <option value="versus">
-                    {ui(interfaceLanguage, "Сравнение", "Versus")}
-                  </option>
-                  <option value="documentary">
-                    {ui(interfaceLanguage, "Документальный", "Documentary")}
-                  </option>
+                  {TITLE_MODE_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label[interfaceLanguage]}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>

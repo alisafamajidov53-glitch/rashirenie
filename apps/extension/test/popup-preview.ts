@@ -4,6 +4,7 @@
 //   cd apps/extension && npx vite --config test/preview.config.ts
 //   http://127.0.0.1:5174/test/popup-preview.html
 //   http://127.0.0.1:5174/test/popup-preview.html?lang=en&theme=light
+//   http://127.0.0.1:5174/test/popup-preview.html?state=signedout  (setup form)
 import type { SupportedLanguage, ThemeMode } from "@channelpilot/shared";
 import { createChromeFixture } from "./analytics-fixtures";
 
@@ -16,6 +17,9 @@ const themeParam = params.get("theme");
 if (themeParam === "light" || themeParam === "dark" || themeParam === "auto") {
   fixture.settings.theme = themeParam satisfies ThemeMode;
 }
+
+if (params.get("state") === "signedout")
+  await fixture.chrome.runtime.sendMessage({ type: "SIGN_OUT" });
 
 Object.defineProperty(window, "chrome", { configurable: true, value: fixture.chrome });
 await import("../src/popup/main");
