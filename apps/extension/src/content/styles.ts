@@ -2041,6 +2041,20 @@ button, input, textarea, select { font: inherit; }
 }
 .cp-realtime .cp-widget-login button:hover:not(:disabled) { background: color-mix(in srgb, var(--cp-purple) 88%, white); }
 .cp-realtime .cp-widget-login button:disabled { opacity: .65; cursor: progress; }
+.cp-realtime .cp-widget-alert {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px 9px 12px;
+  border: 1px solid color-mix(in srgb, var(--w-amber) 38%, transparent); border-radius: 11px;
+  color: var(--w-text-2); background: color-mix(in srgb, var(--w-amber) 9%, transparent);
+  font-size: 11.5px; line-height: 1.45;
+}
+.cp-realtime .cp-widget-alert span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.cp-realtime .cp-widget-alert b { display: block; color: var(--w-amber); font-weight: 650; }
+.cp-realtime .cp-widget-alert button {
+  flex: none; min-height: 28px; padding: 0 10px; border: 1px solid var(--w-line-strong); border-radius: 8px;
+  color: var(--w-text); background: var(--w-surface); cursor: pointer; font-size: 12px; font-weight: 600;
+}
+.cp-realtime .cp-widget-alert button:hover:not(:disabled) { background: var(--w-surface-hover); }
+.cp-realtime .cp-widget-alert button:disabled { opacity: .55; cursor: default; }
 .cp-realtime .cp-widget-loading { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0; }
 .cp-realtime .cp-widget-loading i {
   height: 64px; border-radius: 12px;

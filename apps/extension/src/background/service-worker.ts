@@ -270,9 +270,10 @@ function initialSyncWarning(error: unknown, settings: ExtensionSettings): string
       ? "Google is connected, but this account does not have a YouTube channel."
       : "Google подключён, но у выбранного аккаунта нет YouTube-канала.";
   }
+  const detail = userFacingError(error, settings.interfaceLanguage).slice(0, 320);
   return english
-    ? `Google is connected, but the first analytics sync failed: ${message.slice(0, 320)}`
-    : `Google подключён, но первая синхронизация аналитики не выполнена: ${message.slice(0, 320)}`;
+    ? `Google is connected, but the first analytics sync failed: ${detail}`
+    : `Google подключён, но первая синхронизация аналитики не выполнена: ${detail}`;
 }
 
 async function writeRealtimeStatus(

@@ -56,4 +56,28 @@ it("explains a failed first analytics load and recovers on retry", async () => {
   expect(shadow().querySelector('.cp-widget-login[role="alert"]')).toBeNull();
   // The optimisation tab must not inherit the analytics error either.
   expect(shadow().querySelector(".cp-error")).toBeNull();
+
+  // A later refresh that fails keeps the numbers but says they are old.
+  fixture.setOffline(true);
+  await act(async () => {
+    shadow()
+      .querySelector<HTMLButtonElement>('.cp-realtime button[aria-label="Refresh"]')!
+      .click();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  const alert = shadow().querySelector(".cp-widget-alert");
+  expect(alert?.textContent).toContain("Data not refreshed");
+  expect(alert?.textContent).toContain("Offline test");
+  expect(shadow().querySelector(".cp-widget-periods")).not.toBeNull();
+
+  fixture.setOffline(false);
+  await act(async () => {
+    alert!.querySelector("button")!.click();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(50);
+  });
+  expect(shadow().querySelector(".cp-widget-alert")).toBeNull();
 });

@@ -2050,7 +2050,7 @@ const RealtimeWidget = memo(function RealtimeWidget({
     ? failure || reauthRequired
       ? "warning"
       : "idle"
-    : reauthRequired || dashboard.stale || dashboard.realtimeWarmup
+    : reauthRequired || failure || dashboard.stale || dashboard.realtimeWarmup
       ? "warning"
       : "";
   const compactMetricState = dashboard
@@ -2269,7 +2269,7 @@ const RealtimeWidget = memo(function RealtimeWidget({
               `+${compact(totalHistoryViews)} in 28 days`,
             );
   const heroBadge: { text: string; tone: "live" | "warn" | "muted" } | null =
-    dashboard?.stale
+    dashboard?.stale || failure
       ? { text: ui(language, "Снимок", "Snapshot"), tone: "warn" }
       : activeCoverage && !activeCoverage.complete
         ? { text: ui(language, "Сбор данных", "Collecting"), tone: "warn" }
@@ -2780,6 +2780,19 @@ const RealtimeWidget = memo(function RealtimeWidget({
             </div>
           ) : (
             <>
+              {failure && !loading && (
+                // A failed refresh used to leave the previous numbers on
+                // screen with nothing saying they were no longer current.
+                <div className="cp-widget-alert" role="status">
+                  <span>
+                    <b>{ui(language, "Данные не обновились", "Data not refreshed")}</b>
+                    {failure}
+                  </span>
+                  <button onClick={onRefresh} disabled={!signedIn}>
+                    {ui(language, "Повторить", "Retry")}
+                  </button>
+                </div>
+              )}
               <div className="cp-widget-periods">
                 {(
                   [
@@ -3042,14 +3055,24 @@ function InlineAssistant({ kind }: { kind: "title" | "metadata" }) {
   const copiedTimerRef = useRef(0);
   useEffect(() => () => window.clearTimeout(copiedTimerRef.current), []);
   function flashCopy(id: string, value: string) {
-    void copyText(value)
-      .then(() => {
-        setCopied(id);
-        window.clearTimeout(copiedTimerRef.current);
-        copiedTimerRef.current = window.setTimeout(() => setCopied(""), 1_400);
-      })
-      .catch(() => undefined);
+    // A refused clipboard write (the tab lost focus, a page policy) used to
+    // leave the button unchanged, as if the click had not registered.
+    const mark = (state: string) => {
+      setCopied(state);
+      window.clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = window.setTimeout(() => setCopied(""), 1_800);
+    };
+    void copyText(value).then(
+      () => mark(id),
+      () => mark(`!${id}`),
+    );
   }
+  const copyLabel = (id: string, idle: string) =>
+    copied === id
+      ? ui(language, "Скопировано", "Copied")
+      : copied === `!${id}`
+        ? ui(language, "Не скопировалось", "Not copied")
+        : idle;
 
   if (snapshot.phase === "idle" || snapshot.phase === "typing") {
     return (
@@ -3203,9 +3226,7 @@ function InlineAssistant({ kind }: { kind: "title" | "metadata" }) {
                 {result.titleScores[index]?.total ?? 0}%
               </strong>
               <button onClick={() => flashCopy(`title-${index}`, title)}>
-                {copied === `title-${index}`
-                  ? ui(language, "Скопировано", "Copied")
-                  : ui(language, "Копировать", "Copy")}
+                {copyLabel(`title-${index}`, ui(language, "Копировать", "Copy"))}
               </button>
             </article>
           ))}
@@ -3308,9 +3329,10 @@ function InlineAssistant({ kind }: { kind: "title" | "metadata" }) {
               className="primary"
               onClick={() => flashCopy("description", result.description)}
             >
-              {copied === "description"
-                ? ui(language, "Скопировано", "Copied")
-                : ui(language, "Копировать описание", "Copy description")}
+              {copyLabel(
+                "description",
+                ui(language, "Копировать описание", "Copy description"),
+              )}
             </button>
           </footer>
         </article>
@@ -3325,9 +3347,7 @@ function InlineAssistant({ kind }: { kind: "title" | "metadata" }) {
             ))}
           </div>
           <button onClick={() => flashCopy("tags", result.tags.join(", "))}>
-            {copied === "tags"
-              ? ui(language, "Скопировано", "Copied")
-              : ui(language, "Копировать теги", "Copy tags")}
+            {copyLabel("tags", ui(language, "Копировать теги", "Copy tags"))}
           </button>
         </article>
         <article className="cp-inline-card">
@@ -3341,9 +3361,7 @@ function InlineAssistant({ kind }: { kind: "title" | "metadata" }) {
             ))}
           </div>
           <button onClick={() => flashCopy("hashtags", resultHashtags.join(" "))}>
-            {copied === "hashtags"
-              ? ui(language, "Скопировано", "Copied")
-              : ui(language, "Копировать хэштеги", "Copy hashtags")}
+            {copyLabel("hashtags", ui(language, "Копировать хэштеги", "Copy hashtags"))}
           </button>
         </article>
         <article className="cp-inline-card">
@@ -3357,9 +3375,7 @@ function InlineAssistant({ kind }: { kind: "title" | "metadata" }) {
             ))}
           </ul>
           <button onClick={() => flashCopy("keywords", result.keywords.join(", "))}>
-            {copied === "keywords"
-              ? ui(language, "Скопировано", "Copied")
-              : ui(language, "Копировать ключи", "Copy keywords")}
+            {copyLabel("keywords", ui(language, "Копировать ключи", "Copy keywords"))}
           </button>
         </article>
         <article className="cp-inline-card">
