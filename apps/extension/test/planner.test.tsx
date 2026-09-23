@@ -4,8 +4,10 @@ import { createRoot, type Root } from "react-dom/client";
 import {
   DEFAULT_EXTENSION_SETTINGS,
   DEFAULT_WORKSPACE_STATE,
+  type DashboardData,
   type WorkspaceState,
 } from "@channelpilot/shared";
+import { dashboardFixture } from "./analytics-fixtures";
 import { PlannerPage } from "../src/options/workspace-pages";
 
 let root: Root;
@@ -24,12 +26,18 @@ afterEach(async () => {
 });
 
 /** The page with a real workspace round trip, as the dashboard wires it. */
-function Harness({ initial }: { initial: WorkspaceState }) {
+function Harness({
+  initial,
+  data = null,
+}: {
+  initial: WorkspaceState;
+  data?: DashboardData | null;
+}) {
   const [workspace, setWorkspace] = useState(initial);
   return (
     <PlannerPage
       language="ru"
-      data={null}
+      data={data}
       settings={DEFAULT_EXTENSION_SETTINGS}
       workspace={workspace}
       onWorkspace={async (next) => {
@@ -200,4 +208,41 @@ it("does not discard existing cards when an import exceeds the planner limit", a
   await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
   expect(onWorkspace).not.toHaveBeenCalled();
   expect(onError).toHaveBeenCalledWith(expect.stringContaining("Недостаточно места"));
+});
+
+it("tracks channel goals from the channel's own statistics", async () => {
+  const goal = {
+    id: "goal-1",
+    label: "10K подписчиков",
+    target: 10_000,
+    current: 12,
+    unit: "subscribers" as const,
+    deadline: "",
+  };
+  const workspace = { ...DEFAULT_WORKSPACE_STATE, goals: [goal] };
+  // Without a connected channel the progress is typed in by hand.
+  await act(async () => root.render(<Harness initial={workspace} />));
+  expect(container.querySelector(".goal-list input")).not.toBeNull();
+  expect(container.querySelector(".goal-list span")?.textContent).toContain("12");
+
+  const data = dashboardFixture();
+  data.channel.subscribers = 5_000;
+  await act(async () => root.render(<Harness initial={workspace} data={data} />));
+  expect(container.querySelector(".goal-list input")).toBeNull();
+  expect(container.querySelector(".goal-live")?.textContent).toBe("из канала");
+  expect(container.querySelector(".goal-list span")?.textContent).toContain("50%");
+  expect(
+    container
+      .querySelector(".goal-list [role='progressbar']")
+      ?.getAttribute("aria-valuenow"),
+  ).toBe("50");
+
+  data.channel.subscribers = 12_000;
+  await act(async () =>
+    root.render(<Harness initial={workspace} data={{ ...data }} key="reached" />),
+  );
+  expect(container.querySelector(".goal-list article")?.className).toBe("reached");
+  expect(container.querySelector(".goal-list span")?.textContent).toContain(
+    "цель достигнута",
+  );
 });

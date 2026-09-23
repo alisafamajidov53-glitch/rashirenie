@@ -88,3 +88,18 @@ export function fillAnalyticsDays(
     return byDate.get(date) ?? emptyAnalyticsDay(date);
   });
 }
+
+/** Rounded change in percent; 100 when growing from nothing, 0 when flat at zero. */
+export function percentChange(current: number, previous: number): number {
+  if (previous <= 0) return current > 0 ? 100 : 0;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+export function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2
+    ? (sorted[middle] ?? 0)
+    : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
+}

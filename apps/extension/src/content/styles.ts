@@ -112,6 +112,8 @@ button, input, textarea, select { font: inherit; }
   animation: cp-media-notice-in .24s var(--cp-ease) both;
 }
 .cp-media-notice.with-launcher { bottom: 84px; }
+/* The hint is the point of this notice; let it wrap instead of ellipsising. */
+.cp-hidden-notice .cp-media-notice-copy small { white-space: normal; }
 .cp-media-notice[data-theme="light"] {
   color: #202233; border-color: rgba(78,84,115,.2);
   background: linear-gradient(145deg, rgba(255,255,255,.9), rgba(246,247,255,.79));
@@ -238,7 +240,16 @@ button, input, textarea, select { font: inherit; }
 .cp-upload:not(.disabled):hover { border-color: var(--cp-purple); background: #1c1726; }
 .cp-upload input { position: absolute; inset: 0; width: 100%; opacity: 0; cursor: pointer; }
 .cp-upload b { color: #8f7bff; }
-.cp-upload.disabled { opacity: .64; cursor: not-allowed; }
+.cp-upload.disabled { border-style: solid; cursor: default; }
+.cp-upload.disabled span { color: var(--cp-text-3); }
+.cp-upload.disabled button {
+  flex: 0 0 auto; min-height: 28px; padding: 0 10px; border: 1px solid var(--cp-line); border-radius: var(--cp-r-sm);
+  color: var(--cp-purple-soft); background: transparent; cursor: pointer; font-size: var(--cp-fs-xs); font-weight: 750;
+  transition: border-color .15s ease, color .15s ease, background-color .15s ease;
+}
+.cp-upload.disabled button:hover { border-color: var(--cp-purple); color: #fff; background: color-mix(in srgb, var(--cp-purple) 22%, transparent); }
+.cp-panel[data-theme="light"] .cp-upload.disabled button { color: var(--cp-accent-contrast); }
+.cp-panel[data-theme="light"] .cp-upload.disabled button:hover { color: #fff; background: var(--cp-purple); }
 .cp-actions { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
 .cp-primary, .cp-secondary { border-radius: 11px; padding: 11px 13px; cursor: pointer; font-size: 12px; font-weight: 850; transition: transform .15s ease, box-shadow .15s ease, background-color .15s ease, border-color .15s ease, opacity .15s ease; }
 .cp-primary { border: 0; color: white; background: linear-gradient(135deg, #7e6bff, #5d48df); box-shadow: 0 7px 22px #654dec48; }
@@ -1932,7 +1943,7 @@ button, input, textarea, select { font: inherit; }
 }
 .cp-realtime.expanded::before { background: linear-gradient(180deg, rgba(255, 255, 255, .05), transparent 96px); }
 .cp-realtime[data-theme="light"].expanded::before { background: linear-gradient(180deg, rgba(255, 255, 255, .9), transparent 96px); }
-.cp-realtime button:focus-visible { outline: 2px solid var(--w-accent); outline-offset: 2px; }
+.cp-realtime :is(button, a):focus-visible { outline: 2px solid var(--w-accent); outline-offset: 2px; }
 .cp-realtime .cp-top-dock b { font-weight: 650; }
 .cp-realtime .positive { color: var(--w-green) !important; }
 .cp-realtime .negative { color: var(--w-red) !important; }
@@ -2082,7 +2093,7 @@ button, input, textarea, select { font: inherit; }
 .cp-widget-video {
   width: 100%; display: grid; grid-template-columns: 14px 64px minmax(0, 1fr) auto; gap: 10px; align-items: center;
   padding: 7px 8px; border: 0; border-radius: 11px; color: var(--w-text); background: transparent;
-  text-align: left; cursor: pointer; transition: background .15s ease;
+  text-align: left; text-decoration: none; cursor: pointer; transition: background .15s ease;
 }
 .cp-widget-subscriber-list .cp-widget-video { grid-template-columns: 64px minmax(0, 1fr) auto; }
 .cp-widget-video:hover { background: var(--w-surface-hover); }

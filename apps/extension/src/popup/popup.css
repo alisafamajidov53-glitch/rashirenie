@@ -577,29 +577,36 @@ html[data-theme="light"] .metric-grid > .metric-grid-caption {
 }
 .subscriber-flow {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 7px;
+  grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+  gap: 16px;
+  align-items: center;
   margin-top: 8px;
-}
-.subscriber-flow article {
-  min-width: 0;
-  padding: 10px;
+  padding: 10px 14px;
   border: 1px solid #25222e;
-  border-radius: 12px;
+  border-radius: 15px;
   background: #121019;
 }
-.subscriber-flow span {
-  display: block;
+.subscriber-flow-title {
   overflow: hidden;
   color: #9d97a6;
-  font-size: 10px;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.subscriber-flow b {
-  display: block;
-  margin-top: 5px;
+.subscriber-flow-stat {
+  display: grid;
+  justify-items: end;
+}
+.subscriber-flow-stat b {
   font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+}
+.subscriber-flow-stat.net b {
+  font-size: 16px;
+}
+.subscriber-flow-stat small {
+  color: #8d8796;
 }
 .subscriber-flow .up {
   color: #70e0a9;
@@ -632,11 +639,11 @@ html[data-theme="light"] .metric-grid > .metric-grid-caption {
   font-size: 13px;
   margin-top: 2px;
 }
-.status-good {
-  color: #62cb99 !important;
+.section-title .status-good {
+  color: #62cb99;
 }
-.status-warning {
-  color: #e3b867 !important;
+.section-title .status-warning {
+  color: #e3b867;
 }
 .sparkline {
   display: block;
@@ -832,6 +839,71 @@ footer button:disabled {
   justify-self: end;
   text-align: right;
 }
+.signout-confirm {
+  display: grid;
+  flex: 1;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: center;
+  line-height: 1.4;
+}
+footer .signout-confirm button {
+  margin: 0;
+}
+footer .signout-confirm .danger {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 135, 135, 0.35);
+  color: #ffb7b5;
+  background: rgba(255, 135, 135, 0.1);
+  font-weight: 750;
+}
+footer .signout-confirm .danger:hover:not(:disabled) {
+  color: #fff;
+  background: rgba(255, 135, 135, 0.22);
+}
+.popup-skeleton {
+  display: grid;
+  gap: 10px;
+}
+.popup-skeleton i {
+  display: block;
+  border-radius: 15px;
+  background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 255, 255, 0.09),
+      rgba(255, 255, 255, 0.04)
+    )
+    0 0 / 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+.popup-skeleton .skeleton-row {
+  height: 62px;
+}
+.popup-skeleton .skeleton-row.thin {
+  height: 44px;
+}
+.popup-skeleton .skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.popup-skeleton .skeleton-grid i {
+  height: 96px;
+}
+.popup-skeleton .skeleton-block {
+  height: 150px;
+}
+@keyframes skeleton-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
 
 /* Readability floor for high-density and scaled Windows displays. */
 button,
@@ -846,7 +918,8 @@ select {
 .live-pill,
 .session-banner span,
 .metric-grid em,
-.subscriber-flow span,
+.subscriber-flow-title,
+.subscriber-flow-stat small,
 .empty-chart,
 .video-rank,
 .video-row span,
@@ -895,7 +968,7 @@ html[data-theme="light"] body {
 }
 html[data-theme="light"] .channel-row,
 html[data-theme="light"] .metric-grid article,
-html[data-theme="light"] .subscriber-flow article,
+html[data-theme="light"] .subscriber-flow,
 html[data-theme="light"] .chart-card,
 html[data-theme="light"] .videos,
 html[data-theme="light"] .visibility-quick button {
@@ -1090,7 +1163,7 @@ header p {
 .visibility-quick button,
 .channel-row,
 .metric-grid article,
-.subscriber-flow article,
+.subscriber-flow,
 .chart-card,
 .videos,
 .signin {
@@ -1430,7 +1503,7 @@ html[data-theme="light"] .setup-saved {
 html[data-theme="light"] .visibility-quick button,
 html[data-theme="light"] .channel-row,
 html[data-theme="light"] .metric-grid article,
-html[data-theme="light"] .subscriber-flow article,
+html[data-theme="light"] .subscriber-flow,
 html[data-theme="light"] .chart-card,
 html[data-theme="light"] .videos,
 html[data-theme="light"] .signin {
@@ -1490,6 +1563,37 @@ html[data-theme="light"] .live-pill.paused i {
   background: #a85c16;
   box-shadow: none;
 }
+/* The dark theme's mint and coral read at under 2:1 on the light glass. */
+html[data-theme="light"] .subscriber-flow .up,
+html[data-theme="light"] .video-row > b,
+html[data-theme="light"] .video-row > b small.up,
+html[data-theme="light"] .section-title .status-good {
+  color: #0f7a52;
+}
+html[data-theme="light"] .subscriber-flow .down,
+html[data-theme="light"] .video-row > b small.down {
+  color: #c2392f;
+}
+html[data-theme="light"] .section-title .status-warning {
+  color: #9a5a10;
+}
+html[data-theme="light"] .popup-skeleton i {
+  background-image: linear-gradient(
+    90deg,
+    rgba(42, 51, 74, 0.05),
+    rgba(42, 51, 74, 0.11),
+    rgba(42, 51, 74, 0.05)
+  );
+}
+html[data-theme="light"] footer .signout-confirm .danger {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.3);
+  background: rgba(180, 35, 24, 0.07);
+}
+html[data-theme="light"] footer .signout-confirm .danger:hover:not(:disabled) {
+  color: #fff;
+  background: #c2392f;
+}
 
 @media (max-width: 390px) {
   body {
@@ -1517,9 +1621,22 @@ html[data-theme="light"] .live-pill.paused i {
   }
 
   .key-grid,
-  .metric-grid,
-  .subscriber-flow {
+  .metric-grid {
     grid-template-columns: 1fr;
+  }
+
+  .subscriber-flow {
+    grid-template-columns: repeat(3, auto);
+    justify-content: space-between;
+    row-gap: 6px;
+  }
+
+  .subscriber-flow-title {
+    grid-column: 1 / -1;
+  }
+
+  .subscriber-flow-stat {
+    justify-items: start;
   }
 }
 
@@ -1555,7 +1672,7 @@ html[data-theme="light"] .live-pill.paused i {
   .visibility-quick button,
   .channel-row,
   .metric-grid article,
-  .subscriber-flow article,
+  .subscriber-flow,
   .chart-card,
   .videos,
   .signin,

@@ -1,3 +1,4 @@
+import { isDashboardPage } from "./dashboard-page.js";
 import { CONTENT_SETTABLE_SETTING_KEYS } from "./settings.js";
 import type { ExtensionRequest } from "./types.js";
 
@@ -112,9 +113,10 @@ export function isExtensionRequest(value: unknown): value is ExtensionRequest {
     case "GET_SETTINGS":
     case "GET_WORKSPACE_STATE":
     case "CLEAR_CACHES":
-    case "OPEN_OPTIONS_PAGE":
     case "CREATE_MEDIA_BRIDGE_SESSION":
       return true;
+    case "OPEN_OPTIONS_PAGE":
+      return value.page === undefined || isDashboardPage(value.page);
     case "GET_DASHBOARD":
       return optionalBoolean(value.force);
     case "GET_COMPETITOR":

@@ -1,3 +1,4 @@
+import type { DashboardPage } from "./dashboard-page.js";
 import type { DockMetricId, WidgetSectionId } from "./widget.js";
 
 export type AiProvider =
@@ -511,9 +512,10 @@ export type ExtensionRequest =
   /**
    * `chrome.runtime.openOptionsPage` is not part of the API surface exposed to
    * content scripts — calling it there throws `is not a function`. Content
-   * scripts ask the service worker to open the dashboard instead.
+   * scripts ask the service worker to open the dashboard instead, optionally
+   * on a specific section.
    */
-  | { type: "OPEN_OPTIONS_PAGE" }
+  | { type: "OPEN_OPTIONS_PAGE"; page?: DashboardPage }
   | { type: "RESET_LOCAL_DATA"; preserveSettings?: boolean };
 
 export type ExtensionResponse<T = unknown> =

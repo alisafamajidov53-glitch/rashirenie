@@ -19,6 +19,7 @@ import type {
   AnalysisResult,
   ContentSettingsPatch,
   DashboardData,
+  DashboardPage,
   DockMetricId,
   ExtensionSettings,
   GoogleAuthStatus,
@@ -35,19 +36,23 @@ import {
   addWidgetEntry,
   buildChannelStyleContext,
   bucketAverage,
+  dailyPace,
   DEFAULT_DOCK_METRICS,
   DEFAULT_EXTENSION_SETTINGS,
   DEFAULT_WIDGET_SECTIONS,
   DOCK_METRIC_IDS,
   dockWidthForMetrics,
+  engagementPercent,
   formatMetric,
   formatPercent,
   formatSignedMetric,
+  hourlyPace,
   moveWidgetEntry,
   normalizeAnalysisResult,
   normalizeDockMetrics,
   normalizeExtensionSettings,
   normalizeWidgetSections,
+  percentChange,
   persistablePanelLayout,
   REALTIME_COLLECTION_PERIOD_MINUTES,
   realtimeWindowCoverage,
@@ -107,13 +112,15 @@ function applyPanelStyles(shadow: ShadowRoot): HTMLStyleElement | null {
  * handler, so every "Open dashboard" button in the widget looked alive and did
  * nothing. The service worker has the full API and opens it on request.
  */
-function openDashboard(): void {
-  void rpc({ type: "OPEN_OPTIONS_PAGE" }).catch((error: unknown) => {
-    // Only reachable when the extension was reloaded while this page stayed
-    // open. A `window.open` fallback is not possible: the options page is not a
-    // web-accessible resource, so a page-initiated navigation to it is blocked.
-    console.error("[ChannelPilot] Не удалось открыть кабинет:", error);
-  });
+function openDashboard(page?: DashboardPage): void {
+  void rpc({ type: "OPEN_OPTIONS_PAGE", ...(page ? { page } : {}) }).catch(
+    (error: unknown) => {
+      // Only reachable when the extension was reloaded while this page stayed
+      // open. A `window.open` fallback is not possible: the options page is not a
+      // web-accessible resource, so a page-initiated navigation to it is blocked.
+      console.error("[ChannelPilot] Не удалось открыть кабинет:", error);
+    },
+  );
 }
 
 type Tab = "optimize" | "analytics";
@@ -558,6 +565,29 @@ function ui(language: SupportedLanguage, ru: string, en: string): string {
   return language === "ru" ? ru : en;
 }
 
+/**
+ * The theme YouTube or Studio is actually rendered in.
+ *
+ * Both mark dark mode with a `dark` attribute on <html>. The painted page
+ * background is the fallback for a page that marks it some other way; `null`
+ * means "cannot tell", and the caller falls back to the OS preference.
+ */
+function detectPageTheme(): "dark" | "light" | null {
+  if (document.documentElement.hasAttribute("dark")) return "dark";
+  for (const element of [document.body, document.documentElement]) {
+    if (!element) continue;
+    const channels = getComputedStyle(element)
+      .backgroundColor.match(/[\d.]+/g)
+      ?.map(Number);
+    if (!channels || channels.length < 3) continue;
+    const [red = 0, green = 0, blue = 0, alpha = 1] = channels;
+    if (alpha < 0.5) continue;
+    const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+    return luminance < 0.5 ? "dark" : "light";
+  }
+  return null;
+}
+
 function seoText(language: SupportedLanguage, value: string): string {
   if (language === "ru") return value;
   const translations: Record<string, string> = {
@@ -720,6 +750,10 @@ function applyToStudio(kind: "title" | "description", value: string): boolean {
 
 function compact(value: number): string {
   return formatMetric(value);
+}
+
+function studioAnalyticsUrl(videoId: string): string {
+  return `https://studio.youtube.com/video/${encodeURIComponent(videoId)}/analytics/tab-overview`;
 }
 
 function waitForMediaEvent(
@@ -956,26 +990,8 @@ async function buildThumbnailPreviews(
   }
 }
 
-function engagementRate(views: number, likes: number, comments: number): string {
-  if (views <= 0) return "0%";
-  return formatPercent(((likes + comments) / views) * 100);
-}
-
-function hourlyPace(video: VideoSummary): number {
-  return video.observedMinutes >= 5
-    ? (video.observedViewsLastHour / video.observedMinutes) * 60
-    : 0;
-}
-
-function dailyPace(video: VideoSummary): number {
-  return video.observedMinutes24Hours >= 15
-    ? (video.observedViewsLast24Hours / video.observedMinutes24Hours) * 1_440
-    : 0;
-}
-
-function percentChange(current: number, previous: number): number {
-  if (previous <= 0) return current > 0 ? 100 : 0;
-  return Math.round(((current - previous) / previous) * 100);
+function engagementRate(video: VideoSummary): string {
+  return video.views > 0 ? formatPercent(engagementPercent(video)) : "0%";
 }
 
 function relativePublishedAt(
@@ -1509,7 +1525,7 @@ const AnalyticsView = memo(function AnalyticsView({
                 <div className="cp-momentum-main">
                   <a
                     className="cp-momentum-title"
-                    href={`https://studio.youtube.com/video/${video.id}/analytics/tab-overview`}
+                    href={studioAnalyticsUrl(video.id)}
                     target="_blank"
                     rel="noreferrer"
                     title={`${video.title} — ${ui(language, "открыть аналитику видео", "open video analytics")}`}
@@ -1540,7 +1556,7 @@ const AnalyticsView = memo(function AnalyticsView({
                       }
                     >
                       {relativePublishedAt(video.publishedAt, language)} · ER{" "}
-                      {engagementRate(video.views, video.likes, video.comments)}
+                      {engagementRate(video)}
                       {projected24h !== null &&
                         ` · ≈ ${compact(projected24h)} ${ui(language, "за сутки", "/ day")}`}
                     </small>
@@ -1681,7 +1697,7 @@ const AnalyticsView = memo(function AnalyticsView({
                   )}
                 </small>
               </div>
-              <b>{engagementRate(video.views, video.likes, video.comments)}</b>
+              <b>{engagementRate(video)}</b>
             </article>
           ))}
         </div>
@@ -2428,14 +2444,23 @@ const RealtimeWidget = memo(function RealtimeWidget({
           {visibleLeaders.slice(0, 3).map((video, index) => {
             const status = velocityLabel(video);
             return (
-              <button key={video.id} className="cp-widget-video" onClick={onOpen}>
+              // A row opens that video's analytics in Studio. It used to open
+              // the AI panel, which shows the same list again, bigger.
+              <a
+                key={video.id}
+                className="cp-widget-video"
+                href={studioAnalyticsUrl(video.id)}
+                target="_blank"
+                rel="noreferrer"
+                title={`${video.title} — ${ui(language, "аналитика в Studio", "analytics in Studio")}`}
+              >
                 <span className="cp-widget-rank">{index + 1}</span>
                 <img src={video.thumbnailUrl} alt="" />
                 <span className="cp-widget-video-copy">
                   <b title={video.title}>{video.title}</b>
                   <small>
                     {compact(video.views)} {ui(language, "просм.", "views")} · ER{" "}
-                    {engagementRate(video.views, video.likes, video.comments)}
+                    {engagementRate(video)}
                   </small>
                 </span>
                 <span className="cp-widget-speed">
@@ -2451,7 +2476,7 @@ const RealtimeWidget = memo(function RealtimeWidget({
                       : statusText(status)}
                   </small>
                 </span>
-              </button>
+              </a>
             );
           })}
           {visibleLeaders.length === 0 && (
@@ -2480,7 +2505,14 @@ const RealtimeWidget = memo(function RealtimeWidget({
                 ? (video.subscribersGained28Days / video.analyticsViews28Days) * 1_000
                 : 0;
             return (
-              <button key={video.id} className="cp-widget-video" onClick={onOpen}>
+              <a
+                key={video.id}
+                className="cp-widget-video"
+                href={studioAnalyticsUrl(video.id)}
+                target="_blank"
+                rel="noreferrer"
+                title={`${video.title} — ${ui(language, "аналитика в Studio", "analytics in Studio")}`}
+              >
                 <img src={video.thumbnailUrl} alt="" />
                 <span className="cp-widget-video-copy">
                   <b title={video.title}>{video.title}</b>
@@ -2496,7 +2528,7 @@ const RealtimeWidget = memo(function RealtimeWidget({
                     {compact(video.subscribersLost28Days)}
                   </small>
                 </span>
-              </button>
+              </a>
             );
           })}
           {subscriberSources.length === 0 && (
@@ -2936,7 +2968,7 @@ const RealtimeWidget = memo(function RealtimeWidget({
                   {ui(language, "Скрыть виджет", "Hide widget")}
                 </button>
                 <span className="cp-widget-footer-actions">
-                  <button onClick={openDashboard}>
+                  <button onClick={() => openDashboard()}>
                     {ui(language, "Кабинет", "Dashboard")}
                   </button>
                   <button className="primary" onClick={onOpen}>
@@ -2997,15 +3029,20 @@ function InlineAssistant({ kind }: { kind: "title" | "metadata" }) {
       });
       retryAnalysis();
     } catch {
-      openDashboard();
+      openDashboard("settings");
     }
   }
 
+  // One timer for all copy buttons: with a timer per click, copying a second
+  // item within 1.4s had the first timer wipe the second one's "Copied".
+  const copiedTimerRef = useRef(0);
+  useEffect(() => () => window.clearTimeout(copiedTimerRef.current), []);
   function flashCopy(id: string, value: string) {
     void copyText(value)
       .then(() => {
         setCopied(id);
-        window.setTimeout(() => setCopied(""), 1_400);
+        window.clearTimeout(copiedTimerRef.current);
+        copiedTimerRef.current = window.setTimeout(() => setCopied(""), 1_400);
       })
       .catch(() => undefined);
   }
@@ -3124,7 +3161,7 @@ function InlineAssistant({ kind }: { kind: "title" | "metadata" }) {
               {ui(language, "Включить Auto", "Enable Auto")}
             </button>
           ) : (
-            <button onClick={openDashboard}>
+            <button onClick={() => openDashboard("settings")}>
               {ui(language, "Настройки API", "API settings")}
             </button>
           )}
@@ -3611,6 +3648,7 @@ function App() {
   const [systemPrefersLight, setSystemPrefersLight] = useState(
     () => window.matchMedia("(prefers-color-scheme: light)").matches,
   );
+  const [pageTheme, setPageTheme] = useState<"dark" | "light" | null>(detectPageTheme);
   const [panelRect, setPanelRect] = useState(() =>
     resolvePanelLayout(DEFAULT_EXTENSION_SETTINGS.panelLayout, {
       width: window.innerWidth,
@@ -3758,9 +3796,17 @@ function App() {
     const media = window.matchMedia("(prefers-color-scheme: light)");
     const onChange = (event: MediaQueryListEvent) => {
       setSystemPrefersLight(event.matches);
+      setPageTheme(detectPageTheme());
     };
     media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
+    // YouTube and Studio switch theme by toggling attributes on <html>; that is
+    // rare, so observing its attributes costs nothing on the hot path.
+    const observer = new MutationObserver(() => setPageTheme(detectPageTheme()));
+    observer.observe(document.documentElement, { attributes: true });
+    return () => {
+      media.removeEventListener("change", onChange);
+      observer.disconnect();
+    };
   }, []);
 
   const persistPanelRect = useCallback(async () => {
@@ -4483,6 +4529,23 @@ function App() {
     publishInline({ phase: "idle", progressMessage: "", mediaName: undefined });
   }, [uiSettings.allowAiMediaUploads]);
 
+  // Hiding the widget or the launcher was instant and silent: the element
+  // vanished and nothing said it could be undone, or from where.
+  const [hiddenNotice, setHiddenNotice] = useState<"widget" | "launcher" | null>(null);
+  useEffect(() => {
+    if (!hiddenNotice) return;
+    const timer = window.setTimeout(() => setHiddenNotice(null), 10_000);
+    return () => window.clearTimeout(timer);
+  }, [hiddenNotice]);
+  // Brought back from the popup or the dashboard meanwhile: nothing to undo.
+  useEffect(() => {
+    if (
+      (hiddenNotice === "widget" && showHeaderWidget) ||
+      (hiddenNotice === "launcher" && showLauncher)
+    )
+      setHiddenNotice(null);
+  }, [hiddenNotice, showHeaderWidget, showLauncher]);
+
   useEffect(() => {
     if (autoMediaNotice?.status !== "ready") return;
     const timer = window.setTimeout(
@@ -4814,7 +4877,7 @@ function App() {
 
   async function changeInterfaceVisibility(
     patch: Pick<ExtensionSettings, "showHeaderWidget" | "showLauncher">,
-  ) {
+  ): Promise<boolean> {
     try {
       const saved = await rpc<PublicExtensionSettings>({
         type: "SAVE_SETTINGS_PATCH",
@@ -4822,6 +4885,7 @@ function App() {
       });
       setShowHeaderWidget(saved.showHeaderWidget);
       setShowLauncher(saved.showLauncher);
+      return true;
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -4832,7 +4896,29 @@ function App() {
               "Could not save interface visibility",
             ),
       );
+      return false;
     }
+  }
+
+  function hideInterfaceElement(target: "widget" | "launcher"): void {
+    void changeInterfaceVisibility(
+      target === "widget"
+        ? { showHeaderWidget: false, showLauncher }
+        : { showHeaderWidget, showLauncher: false },
+    ).then((saved) => {
+      if (saved) setHiddenNotice(target);
+    });
+  }
+
+  function undoHide(): void {
+    const target = hiddenNotice;
+    setHiddenNotice(null);
+    if (!target) return;
+    void changeInterfaceVisibility(
+      target === "widget"
+        ? { showHeaderWidget: true, showLauncher }
+        : { showHeaderWidget, showLauncher: true },
+    );
   }
 
   function focusedUiElement(): HTMLElement | null {
@@ -4926,11 +5012,12 @@ function App() {
     }
   }
 
+  // "Auto" follows the page the widget sits on. YouTube's own theme is set
+  // independently of the OS, and a light capsule in a dark masthead (or the
+  // reverse) looked pasted on. The OS preference is only the fallback.
   const resolvedPanelTheme =
     uiSettings.theme === "auto"
-      ? systemPrefersLight
-        ? "light"
-        : "dark"
+      ? (pageTheme ?? (systemPrefersLight ? "light" : "dark"))
       : uiSettings.theme;
   // The header widget is a ~700-line subtree rendered through a portal. Its
   // four callbacks used to be fresh arrow functions on every App render, so
@@ -4949,11 +5036,7 @@ function App() {
     },
     onRefresh: () => void loadDashboard(true),
     onSignIn: () => void signIn(),
-    onHide: () =>
-      void changeInterfaceVisibility({
-        showHeaderWidget: false,
-        showLauncher,
-      }),
+    onHide: () => hideInterfaceElement("widget"),
     onComposition: (patch) => void saveWidgetComposition(patch),
   };
   // Its own boundary: a failure in the header widget used to take the panel
@@ -5110,6 +5193,46 @@ function App() {
             </button>
           </div>
         )}
+        {hiddenNotice && !autoMediaNotice && (
+          <div
+            className={`cp-media-notice ready cp-hidden-notice ${showLauncher ? "with-launcher" : ""}`}
+            data-theme={resolvedPanelTheme}
+            role="status"
+          >
+            <span className="cp-media-notice-icon" aria-hidden="true">
+              ✓
+            </span>
+            <span className="cp-media-notice-copy">
+              <strong>
+                {hiddenNotice === "widget"
+                  ? ui(interfaceLanguage, "Верхний виджет скрыт", "Top widget hidden")
+                  : ui(
+                      interfaceLanguage,
+                      "Кнопка ChannelPilot скрыта",
+                      "ChannelPilot button hidden",
+                    )}
+              </strong>
+              <small>
+                {ui(
+                  interfaceLanguage,
+                  "Вернуть можно в меню ChannelPilot на панели Chrome",
+                  "Bring it back from the ChannelPilot menu in the Chrome toolbar",
+                )}
+              </small>
+            </span>
+            <button type="button" className="cp-media-notice-open" onClick={undoHide}>
+              {ui(interfaceLanguage, "Вернуть", "Undo")}
+            </button>
+            <button
+              type="button"
+              className="cp-media-notice-close"
+              onClick={() => setHiddenNotice(null)}
+              aria-label={ui(interfaceLanguage, "Скрыть уведомление", "Dismiss notice")}
+            >
+              ×
+            </button>
+          </div>
+        )}
         {interfaceReady && showLauncher && (
           <div className="cp-launcher-shell">
             <button ref={launcherRef} className="cp-launcher" onClick={openPanel}>
@@ -5126,12 +5249,7 @@ function App() {
             </button>
             <button
               className="cp-launcher-hide"
-              onClick={() =>
-                void changeInterfaceVisibility({
-                  showHeaderWidget,
-                  showLauncher: false,
-                })
-              }
+              onClick={() => hideInterfaceElement("launcher")}
               title={ui(
                 interfaceLanguage,
                 "Скрыть кнопку ChannelPilot AI",
@@ -5300,7 +5418,7 @@ function App() {
               <button
                 className="cp-secondary"
                 style={{ marginTop: 8 }}
-                onClick={openDashboard}
+                onClick={() => openDashboard("settings")}
               >
                 {ui(
                   interfaceLanguage,
@@ -5347,7 +5465,7 @@ function App() {
                       )}
                     </strong>
                   </div>
-                  <button onClick={openDashboard}>
+                  <button onClick={() => openDashboard("seo")}>
                     {ui(interfaceLanguage, "Полный чек-лист", "Full checklist")} ↗
                   </button>
                 </header>
@@ -5594,50 +5712,55 @@ function App() {
                 )}
               />
             </label>
-            <label
-              className={`cp-upload ${uiSettings.allowAiMediaUploads ? "" : "disabled"}`}
-            >
-              <span>
-                {uiSettings.allowAiMediaUploads
-                  ? ui(
-                      interfaceLanguage,
-                      "Видео, аудио или файл субтитров",
-                      "Video, audio or subtitle file",
-                    )
-                  : ui(
-                      interfaceLanguage,
-                      "Передача медиа отключена в настройках",
-                      "Media uploads are disabled in settings",
-                    )}
-              </span>
-              <b>
-                {uiSettings.allowAiMediaUploads
-                  ? `${ui(interfaceLanguage, "Выбрать", "Choose")} →`
-                  : ui(interfaceLanguage, "Только текст", "Text only")}
-              </b>
-              <input
-                type="file"
-                accept="video/*,audio/*,image/*,.srt,.vtt,.txt"
-                disabled={loading || !uiSettings.allowAiMediaUploads}
-                onChange={(event) => {
-                  const selected = event.target.files?.[0] ?? null;
-                  if (selected?.size) {
-                    lastMediaEvidenceRef.current = "";
-                    setFile(selected);
-                    void runAnalysis(context, selected, true);
-                  } else if (selected) {
-                    setError(
-                      ui(
-                        interfaceLanguage,
-                        "Выбранный файл пуст",
-                        "The selected file is empty",
-                      ),
-                    );
-                  }
-                  event.currentTarget.value = "";
-                }}
-              />
-            </label>
+            {/* The disabled state was a greyed-out picker saying "disabled in
+                settings" with no way to get to that setting from here. */}
+            {!uiSettings.allowAiMediaUploads ? (
+              <div className="cp-upload disabled">
+                <span>
+                  {ui(
+                    interfaceLanguage,
+                    "Анализ файлов выключен — AI работает по тексту",
+                    "File analysis is off — the AI works from text",
+                  )}
+                </span>
+                <button type="button" onClick={() => openDashboard("settings")}>
+                  {ui(interfaceLanguage, "Включить", "Turn on")}
+                </button>
+              </div>
+            ) : (
+              <label className="cp-upload">
+                <span>
+                  {ui(
+                    interfaceLanguage,
+                    "Видео, аудио или файл субтитров",
+                    "Video, audio or subtitle file",
+                  )}
+                </span>
+                <b>{`${ui(interfaceLanguage, "Выбрать", "Choose")} →`}</b>
+                <input
+                  type="file"
+                  accept="video/*,audio/*,image/*,.srt,.vtt,.txt"
+                  disabled={loading}
+                  onChange={(event) => {
+                    const selected = event.target.files?.[0] ?? null;
+                    if (selected?.size) {
+                      lastMediaEvidenceRef.current = "";
+                      setFile(selected);
+                      void runAnalysis(context, selected, true);
+                    } else if (selected) {
+                      setError(
+                        ui(
+                          interfaceLanguage,
+                          "Выбранный файл пуст",
+                          "The selected file is empty",
+                        ),
+                      );
+                    }
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+            )}
             <div className="cp-actions">
               <button
                 className="cp-primary"

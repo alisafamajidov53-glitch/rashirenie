@@ -31,13 +31,25 @@ export interface VideoPerformanceScore {
   calculatedAt: string;
 }
 
-function engagement(video: VideoSummary): number {
+/** Likes and comments per 100 public views. */
+export function engagementPercent(video: VideoSummary): number {
   return video.views > 0 ? ((video.likes + video.comments) / video.views) * 100 : 0;
 }
 
-function hourlyPace(video: VideoSummary): number {
+/**
+ * Views an hour at the pace observed in the last hour. Zero until five minutes
+ * are observed: a two-minute sample extrapolated to an hour is noise.
+ */
+export function hourlyPace(video: VideoSummary): number {
   return video.observedMinutes >= 5
     ? (video.observedViewsLastHour / video.observedMinutes) * 60
+    : 0;
+}
+
+/** Views a day at the pace observed over the last 24 hours (15 minutes minimum). */
+export function dailyPace(video: VideoSummary): number {
+  return video.observedMinutes24Hours >= 15
+    ? (video.observedViewsLast24Hours / video.observedMinutes24Hours) * 1_440
     : 0;
 }
 
@@ -149,7 +161,7 @@ export function calculateVideoPerformanceScore(
     video.watchMinutes28Days >= 0;
 
   const velocity = hourlyPace(video);
-  const interaction = engagement(video);
+  const interaction = engagementPercent(video);
   const retention = video.averageViewPercentage28Days;
   const subscribers = subscriberConversion(video);
   const pace = lifetimePace(video, now);
@@ -177,7 +189,7 @@ export function calculateVideoPerformanceScore(
       Number.isFinite(item.comments) &&
       item.likes >= 0 &&
       item.comments >= 0,
-    engagement,
+    engagementPercent,
     20,
     formatConfirmed,
   );

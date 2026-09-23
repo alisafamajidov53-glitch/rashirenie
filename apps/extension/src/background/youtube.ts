@@ -17,8 +17,9 @@ import {
   classifyCommentText,
   combineRealtimeObservations,
   fillAnalyticsDays,
+  median,
 } from "@channelpilot/shared";
-import { getObservedStats, getRealtimeSeries, saveSamples } from "./realtime-store";
+import { observedStats, realtimeSeries, saveSamples } from "./realtime-store";
 
 const DATA_API = "https://www.googleapis.com/youtube/v3";
 const ANALYTICS_API = "https://youtubeanalytics.googleapis.com/v2";
@@ -830,7 +831,7 @@ export async function collectRealtime(
 ): Promise<RealtimeDashboardSnapshot> {
   const { summary: channel, uploadsPlaylist } = await getChannel(token, language);
   let videos = await getRecentVideos(token, uploadsPlaylist);
-  await saveSamples(
+  const samples = await saveSamples(
     [
       { id: CHANNEL_SAMPLE_ID, views: channel.views },
       ...videos.map((video) => ({ id: video.id, views: video.views })),
@@ -838,10 +839,11 @@ export async function collectRealtime(
     Date.now(),
     channel.id,
   );
-  const observed = await getObservedStats(videos.map((video) => video.id));
-  const channelObserved = (await getObservedStats([CHANNEL_SAMPLE_ID]))[
-    CHANNEL_SAMPLE_ID
-  ] ?? {
+  const observed = observedStats(samples, [
+    CHANNEL_SAMPLE_ID,
+    ...videos.map((video) => video.id),
+  ]);
+  const channelObserved = observed[CHANNEL_SAMPLE_ID] ?? {
     views: 0,
     observedMinutes: 0,
     viewsLast24Hours: 0,
@@ -856,7 +858,7 @@ export async function collectRealtime(
     previousViewsPerMinute15: 0,
     velocityTrendPercent: 0,
   };
-  const channelRealtimeSeries = await getRealtimeSeries([CHANNEL_SAMPLE_ID]);
+  const channelRealtimeSeries = realtimeSeries(samples, [CHANNEL_SAMPLE_ID]);
   videos = videos.map((video) => ({
     ...video,
     observedViewsLastHour: observed[video.id]?.views ?? 0,
@@ -1217,14 +1219,6 @@ export async function getCompetitorSnapshot(
       },
     ];
   });
-  const views = recentVideos.map((video) => video.views).sort((a, b) => a - b);
-  const middle = Math.floor(views.length / 2);
-  const medianViews =
-    views.length === 0
-      ? 0
-      : views.length % 2
-        ? (views[middle] ?? 0)
-        : ((views[middle - 1] ?? 0) + (views[middle] ?? 0)) / 2;
   const cutoff = Date.now() - 30 * 86_400_000;
   return {
     channel: {
@@ -1245,7 +1239,7 @@ export async function getCompetitorSnapshot(
             recentVideos.length,
         )
       : 0,
-    medianViews: Math.round(medianViews),
+    medianViews: Math.round(median(recentVideos.map((video) => video.views))),
     uploadsLast30Days: recentVideos.filter(
       (video) => Date.parse(video.publishedAt) >= cutoff,
     ).length,

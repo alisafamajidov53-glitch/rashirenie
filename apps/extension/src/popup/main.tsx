@@ -8,6 +8,7 @@ import {
   GEMINI_MODEL_OPTIONS,
   GROQ_MODEL_OPTIONS,
   TWELVELABS_MODEL_OPTIONS,
+  hourlyPace,
   isGoogleClientId,
   normalizeExtensionSettings,
   realtimeWindowCoverage,
@@ -17,8 +18,8 @@ import {
   type GoogleAuthStatus,
   type GoogleSignInResult,
   type SupportedLanguage,
-  type VideoSummary,
 } from "@channelpilot/shared";
+import { openDashboardPage } from "../lib/dashboard-link";
 import { rpc } from "../lib/rpc";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useInterfacePreferences } from "../hooks/useInterfacePreferences";
@@ -26,12 +27,6 @@ import "./popup.css";
 
 function compact(value: number): string {
   return formatMetric(value);
-}
-
-function hourlyPace(video: VideoSummary): number {
-  return video.observedMinutes >= 5
-    ? (video.observedViewsLastHour / video.observedMinutes) * 60
-    : 0;
 }
 
 function tr(language: SupportedLanguage, ru: string, en: string): string {
@@ -102,6 +97,9 @@ function App() {
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [preferencesSaved, setPreferencesSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Signing out deletes the collected realtime history (up to 50 hours of
+  // samples) and it was one click away from "Open dashboard".
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const loadRequestIdRef = useRef(0);
   const persistedSettingsRef = useRef<ExtensionSettings>(DEFAULT_EXTENSION_SETTINGS);
   const persistedInterfaceLanguageRef = useRef<SupportedLanguage>(
@@ -331,6 +329,7 @@ function App() {
 
   async function signOut() {
     if (loading || visibilitySaving) return;
+    setConfirmingSignOut(false);
     const requestId = ++loadRequestIdRef.current;
     setLoading(true);
     setError("");
@@ -535,7 +534,7 @@ function App() {
           </button>
           <button
             className="setup-link"
-            onClick={() => void chrome.runtime.openOptionsPage()}
+            onClick={() => void openDashboardPage("settings")}
           >
             {tr(language, "Открыть подключения", "Open connections")}
           </button>
@@ -804,7 +803,7 @@ function App() {
           </div>
           <button
             className="setup-link"
-            onClick={() => void chrome.runtime.openOptionsPage()}
+            onClick={() => void openDashboardPage("settings")}
           >
             {tr(
               language,
@@ -853,7 +852,7 @@ function App() {
                 </strong>
                 <span>{data.analyticsWarnings![0]}</span>
               </div>
-              <button onClick={() => void chrome.runtime.openOptionsPage()}>
+              <button onClick={() => void openDashboardPage()}>
                 {tr(language, "Проверить", "Check")}
               </button>
             </section>
@@ -914,21 +913,29 @@ function App() {
               </em>
             </article>
           </section>
-          <section className="subscriber-flow">
-            <article>
-              <span>{tr(language, "Подписались · 28д", "Gained · 28d")}</span>
+          {/* One row instead of three cards: in a third of the popup the labels
+              "Подписались · 28д" / "Чистый прирост" were cut to "Подписалис…". */}
+          <section
+            className="subscriber-flow"
+            aria-label={tr(language, "Подписчики за 28 дней", "Subscribers, 28 days")}
+          >
+            <span className="subscriber-flow-title">
+              {tr(language, "Подписчики · 28 дней", "Subscribers · 28 days")}
+            </span>
+            <span className="subscriber-flow-stat">
               <b className="up">+{compact(subscribersGained28)}</b>
-            </article>
-            <article>
-              <span>{tr(language, "Отписались · 28д", "Lost · 28d")}</span>
+              <small>{tr(language, "пришли", "gained")}</small>
+            </span>
+            <span className="subscriber-flow-stat">
               <b className="down">−{compact(subscribersLost28)}</b>
-            </article>
-            <article>
-              <span>{tr(language, "Чистый прирост", "Net growth")}</span>
+              <small>{tr(language, "ушли", "lost")}</small>
+            </span>
+            <span className="subscriber-flow-stat net">
               <b className={subscribersNet28 >= 0 ? "up" : "down"}>
                 {formatSignedMetric(subscribersNet28)}
               </b>
-            </article>
+              <small>{tr(language, "итог", "net")}</small>
+            </span>
           </section>
 
           <section className="chart-card">
@@ -1024,6 +1031,20 @@ function App() {
             })}
           </section>
         </>
+      ) : loading ? (
+        // The first dashboard read can take a few seconds. Showing the "waiting
+        // for YouTube data — check your APIs" card during it made every normal
+        // popup open look like a setup problem.
+        <section className="popup-skeleton" aria-hidden="true">
+          <i className="skeleton-row" />
+          <div className="skeleton-grid">
+            <i />
+            <i />
+            <i />
+          </div>
+          <i className="skeleton-row thin" />
+          <i className="skeleton-block" />
+        </section>
       ) : signedIn ? (
         <section className="signin">
           <span className="eyebrow">
@@ -1060,26 +1081,57 @@ function App() {
       )}
 
       <footer className={signedIn && data ? "popup-footer sticky" : "popup-footer"}>
-        <button
-          className="dashboard-link"
-          onClick={() => void chrome.runtime.openOptionsPage()}
-        >
-          {tr(language, "Открыть кабинет", "Open dashboard")}
-        </button>
-        {signedIn && (
-          <button onClick={() => void signOut()} disabled={loading || visibilitySaving}>
-            {tr(language, "Выйти", "Sign out")}
-          </button>
+        {confirmingSignOut ? (
+          <div
+            className="signout-confirm"
+            role="alertdialog"
+            aria-labelledby="signout-confirm-text"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setConfirmingSignOut(false);
+            }}
+          >
+            <span id="signout-confirm-text">
+              {tr(
+                language,
+                "Выйти из Google? Накопленная статистика просмотров будет удалена.",
+                "Sign out of Google? Collected view statistics will be deleted.",
+              )}
+            </span>
+            <button autoFocus onClick={() => setConfirmingSignOut(false)}>
+              {tr(language, "Отмена", "Cancel")}
+            </button>
+            <button
+              className="danger"
+              onClick={() => void signOut()}
+              disabled={loading || visibilitySaving}
+            >
+              {tr(language, "Выйти", "Sign out")}
+            </button>
+          </div>
+        ) : (
+          <>
+            <button className="dashboard-link" onClick={() => void openDashboardPage()}>
+              {tr(language, "Открыть кабинет", "Open dashboard")}
+            </button>
+            {signedIn && (
+              <button
+                onClick={() => setConfirmingSignOut(true)}
+                disabled={loading || visibilitySaving}
+              >
+                {tr(language, "Выйти", "Sign out")}
+              </button>
+            )}
+            <span>
+              {tr(language, "Данные обновлены", "Data updated")}{" "}
+              {data
+                ? new Date(data.sampledAt).toLocaleTimeString(language, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "—"}
+            </span>
+          </>
         )}
-        <span>
-          {tr(language, "Данные обновлены", "Data updated")}{" "}
-          {data
-            ? new Date(data.sampledAt).toLocaleTimeString(language, {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : "—"}
-        </span>
       </footer>
     </main>
   );

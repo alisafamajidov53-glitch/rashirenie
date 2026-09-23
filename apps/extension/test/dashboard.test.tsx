@@ -117,5 +117,11 @@ it("renders the real dashboard, filters formats, opens details and signs out", a
   );
   expect(document.querySelector(".analytics-video-row")).not.toBeNull();
   await click("Sign out");
+  // The first click asks: signing out deletes the collected statistics.
+  expect(document.body.textContent).toContain(
+    "Collected view statistics will be deleted",
+  );
+  expect(document.body.textContent).not.toContain("Google account disconnected");
+  await click("Yes, sign out");
   expect(document.body.textContent).toContain("Google account disconnected");
 });

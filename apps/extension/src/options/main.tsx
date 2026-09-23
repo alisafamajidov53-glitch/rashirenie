@@ -5,6 +5,7 @@ import type {
   AiProvider,
   AnalysisResult,
   DashboardData,
+  DashboardPage,
   ExtensionSettings,
   GoogleAuthStatus,
   GoogleSignInResult,
@@ -35,10 +36,17 @@ import {
   normalizeWorkspaceState,
   WORKSPACE_STORAGE_KEY,
   calculateVideoPerformanceScore,
+  dailyPace,
+  engagementPercent,
+  hourlyPace,
+  median,
+  percentChange,
   realtimeWindowCoverage,
   inContentCohort,
   buildChannelStyleContext,
   youtubeVideoIdFromUrl,
+  DASHBOARD_PAGE_REQUEST_KEY,
+  readDashboardPageRequest,
   type ContentCohort,
   type VideoContext,
 } from "@channelpilot/shared";
@@ -53,6 +61,8 @@ import { useInterfacePreferences } from "../hooks/useInterfacePreferences";
 import {
   CommentsPage,
   CompetitorsPage,
+  contentIdeasFromResult,
+  IDEA_LIMIT,
   IdeasPage,
   PlannerPage,
   SeoPage,
@@ -76,33 +86,13 @@ import { WidgetCompositionEditor } from "./widget-composition";
 import { ThumbnailEditor } from "./thumbnail-editor";
 import { formatTimestamp, matchesSearch, type ThumbnailFormat } from "./editor-utils";
 
-type Page =
-  | "overview"
-  | "videos"
-  | "competitors"
-  | "ideas"
-  | "planner"
-  | "comments"
-  | "seo"
-  | "ai"
-  | "thumbnail"
-  | "settings";
+type Page = DashboardPage;
 type MetricPeriod = "60m" | "24h" | "all";
 type TestResult = Record<
   "gemini" | "groq" | "twelveLabs",
   { ok: boolean; message: string }
 >;
-type NavIconName =
-  | "overview"
-  | "videos"
-  | "competitors"
-  | "ideas"
-  | "planner"
-  | "comments"
-  | "seo"
-  | "ai"
-  | "thumbnail"
-  | "settings";
+type NavIconName = DashboardPage;
 
 const NAVIGATION: Array<[Page, Record<SupportedLanguage, string>, NavIconName]> = [
   ["overview", { ru: "Обзор", en: "Overview" }, "overview"],
@@ -246,16 +236,6 @@ function sum(values: number[]): number {
   return values.reduce((total, value) => total + value, 0);
 }
 
-function percentChange(current: number, previous: number): number {
-  if (previous <= 0) return current > 0 ? 100 : 0;
-  return Math.round(((current - previous) / previous) * 100);
-}
-
-function engagement(video: VideoSummary): number {
-  if (!video.views) return 0;
-  return ((video.likes + video.comments) / video.views) * 100;
-}
-
 /**
  * useState that survives unmounting for the life of the tab. Session, not
  * local, storage: a filter left on yesterday should not greet the user today.
@@ -288,27 +268,6 @@ function useSessionState<T>(
     [key],
   );
   return [value, update];
-}
-
-function hourlyPace(video: VideoSummary): number {
-  return video.observedMinutes >= 5
-    ? (video.observedViewsLastHour / video.observedMinutes) * 60
-    : 0;
-}
-
-function dailyPace(video: VideoSummary): number {
-  return video.observedMinutes24Hours >= 15
-    ? (video.observedViewsLast24Hours / video.observedMinutes24Hours) * 1_440
-    : 0;
-}
-
-function median(values: number[]): number {
-  if (!values.length) return 0;
-  const sorted = [...values].sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2
-    ? (sorted[middle] ?? 0)
-    : ((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0)) / 2;
 }
 
 function exportStamp(): string {
@@ -404,7 +363,7 @@ export function videosCsv(data: DashboardData): string {
       video.velocityTrendPercent,
       video.likes,
       video.comments,
-      engagement(video).toFixed(3),
+      engagementPercent(video).toFixed(3),
       attributed ? video.analyticsViews28Days : null,
       detailed ? video.watchMinutes28Days : null,
       detailed ? video.averageViewPercentage28Days.toFixed(3) : null,
@@ -1024,7 +983,7 @@ function VideoTable({
       case "velocity":
         return video.viewsPerMinuteLast15;
       case "engagement":
-        return engagement(video);
+        return engagementPercent(video);
       case "retention":
         return video.analyticsAvailable28Days &&
           video.analyticsDetailAvailable28Days !== false
@@ -1336,7 +1295,7 @@ function VideoTable({
                 </span>
               </div>
               <div className="table-stat">
-                <strong>{formatPercent(engagement(video), 2)}</strong>
+                <strong>{formatPercent(engagementPercent(video), 2)}</strong>
                 <span>
                   ♥ {compact(video.likes)} · {compact(video.comments)}{" "}
                   {tr(language, "комм.", "comments")}
@@ -1488,6 +1447,7 @@ function SettingsPanel({
   saving,
   dirty,
   onSave,
+  onDiscard,
   onTest,
   onRefreshModels,
   onCopy,
@@ -1509,6 +1469,7 @@ function SettingsPanel({
   saving: boolean;
   dirty: boolean;
   onSave: () => void;
+  onDiscard: () => void;
   onTest: () => void;
   onRefreshModels: () => void;
   onCopy: () => void;
@@ -1549,11 +1510,6 @@ function SettingsPanel({
               "Keys stay inside your local Chrome profile.",
             )}
           </p>
-          {dirty && (
-            <span className="settings-unsaved" role="status">
-              {tr(language, "Есть несохранённые изменения", "Unsaved changes")}
-            </span>
-          )}
         </div>
         <button
           className="primary-button"
@@ -1714,7 +1670,13 @@ function SettingsPanel({
                   })
                 }
               >
-                <option value="auto">{tr(language, "Как в системе", "System")}</option>
+                <option value="auto">
+                  {tr(
+                    language,
+                    "Авто — как в системе и YouTube",
+                    "Auto — system and YouTube",
+                  )}
+                </option>
                 <option value="dark">{tr(language, "Тёмная", "Dark")}</option>
                 <option value="light">{tr(language, "Светлая", "Light")}</option>
               </select>
@@ -2349,6 +2311,28 @@ function SettingsPanel({
           </div>
         </article>
       </div>
+      {/* The only save button sat at the top of a four-screen page, so an
+          edit at the bottom meant scrolling back up to keep it. */}
+      {dirty && (
+        <div className="settings-savebar">
+          <span className="settings-unsaved" role="status">
+            {tr(language, "Есть несохранённые изменения", "Unsaved changes")}
+          </span>
+          <button className="secondary-button" onClick={onDiscard} disabled={saving}>
+            {tr(language, "Отменить", "Discard")}
+          </button>
+          <button
+            className="primary-button"
+            onClick={onSave}
+            disabled={saving}
+            aria-busy={saving}
+          >
+            {saving
+              ? tr(language, "Сохраняем…", "Saving…")
+              : tr(language, "Сохранить", "Save")}
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -2500,6 +2484,33 @@ function App() {
   useEffect(() => {
     document.documentElement.lang = language;
   }, [language]);
+
+  // "Configure API keys" in the YouTube panel, a planner reminder and similar
+  // links ask for one section. Honoured on load and while this tab is open,
+  // since openOptionsPage focuses an existing dashboard instead of reloading it.
+  useEffect(() => {
+    const session = chrome.storage.session;
+    if (!session) return;
+    const consume = (value: unknown) => {
+      const requested = readDashboardPageRequest(value);
+      if (!requested) return;
+      void session.remove(DASHBOARD_PAGE_REQUEST_KEY).catch(() => undefined);
+      setPage(requested);
+    };
+    void session
+      .get(DASHBOARD_PAGE_REQUEST_KEY)
+      .then((stored) => consume(stored[DASHBOARD_PAGE_REQUEST_KEY]))
+      .catch(() => undefined);
+    const onChanged = (
+      changes: Record<string, chrome.storage.StorageChange>,
+      areaName: string,
+    ) => {
+      if (areaName === "session")
+        consume(changes[DASHBOARD_PAGE_REQUEST_KEY]?.newValue);
+    };
+    chrome.storage.onChanged.addListener(onChanged);
+    return () => chrome.storage.onChanged.removeListener(onChanged);
+  }, []);
 
   useEffect(() => {
     scrollDashboardTop();
@@ -3549,6 +3560,48 @@ function App() {
     }
   }
 
+  const savedIdeaTitles = useMemo(
+    () => new Set(workspace.ideas.map((idea) => idea.title)),
+    [workspace.ideas],
+  );
+
+  /** Keeps the overview's AI ideas: one title, or every one not saved yet. */
+  async function saveChannelIdeas(onlyTitle?: string): Promise<void> {
+    if (!channelIdeas) return;
+    const candidates = contentIdeasFromResult(channelIdeas, "long", "medium").filter(
+      (idea) =>
+        (onlyTitle === undefined || idea.title === onlyTitle) &&
+        !savedIdeaTitles.has(idea.title),
+    );
+    if (candidates.length === 0) return;
+    try {
+      let added = 0;
+      const saved = await saveWorkspace((current) => {
+        const known = new Set(current.ideas.map((idea) => idea.title));
+        const additions = candidates.filter((idea) => !known.has(idea.title));
+        if (current.ideas.length + additions.length > IDEA_LIMIT) {
+          throw new Error(
+            tr(
+              language,
+              "В «Идеях» не хватает места. Удалите ненужные идеи.",
+              "Ideas are full. Remove ideas you no longer need.",
+            ),
+          );
+        }
+        added = additions.length;
+        return { ...current, ideas: [...additions, ...current.ideas] };
+      });
+      if (!saved) return;
+      showNotice(
+        added === 1
+          ? tr(language, "Идея сохранена в «Идеи»", "Idea saved to Ideas")
+          : tr(language, `Сохранено идей: ${added}`, `${added} ideas saved`),
+      );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    }
+  }
+
   function editThumbnail(video: VideoSummary) {
     setSelectedVideo(video);
     setAiMediaFile(null);
@@ -3682,7 +3735,7 @@ function App() {
       .find((video) => hourlyPace(video) > 0);
     const bestEngagement = [...videos]
       .filter((video) => video.views >= 20)
-      .sort((left, right) => engagement(right) - engagement(left))[0];
+      .sort((left, right) => engagementPercent(right) - engagementPercent(left))[0];
     const cooling = [...videos]
       .filter(
         (video) =>
@@ -4255,14 +4308,61 @@ function App() {
                               <span className="ai-ideas-provider">
                                 {channelIdeas.provider}
                               </span>
+                              <button
+                                type="button"
+                                className="secondary-button ai-ideas-save-all"
+                                disabled={channelIdeas.titles
+                                  .slice(0, 10)
+                                  .every((title) => savedIdeaTitles.has(title))}
+                                onClick={() => void saveChannelIdeas()}
+                              >
+                                {channelIdeas.titles
+                                  .slice(0, 10)
+                                  .every((title) => savedIdeaTitles.has(title))
+                                  ? tr(language, "Все в «Идеях» ✓", "All in Ideas ✓")
+                                  : tr(language, "Сохранить в «Идеи»", "Save to Ideas")}
+                              </button>
                             </h3>
                             <div className="ai-ideas-grid">
-                              {channelIdeas.titles.slice(0, 10).map((title, index) => (
-                                <article key={`${index}-${title.slice(0, 24)}`}>
-                                  <b>{index + 1}</b>
-                                  <p>{title}</p>
-                                </article>
-                              ))}
+                              {channelIdeas.titles.slice(0, 10).map((title, index) => {
+                                const saved = savedIdeaTitles.has(title);
+                                return (
+                                  <article key={`${index}-${title.slice(0, 24)}`}>
+                                    <b>{index + 1}</b>
+                                    <p>{title}</p>
+                                    <button
+                                      type="button"
+                                      className={`ai-idea-save${saved ? " saved" : ""}`}
+                                      disabled={saved}
+                                      aria-label={
+                                        saved
+                                          ? tr(
+                                              language,
+                                              "Уже в «Идеях»",
+                                              "Already in Ideas",
+                                            )
+                                          : `${tr(language, "Сохранить в «Идеи»", "Save to Ideas")}: ${title}`
+                                      }
+                                      title={
+                                        saved
+                                          ? tr(
+                                              language,
+                                              "Уже в «Идеях»",
+                                              "Already in Ideas",
+                                            )
+                                          : tr(
+                                              language,
+                                              "Сохранить в «Идеи»",
+                                              "Save to Ideas",
+                                            )
+                                      }
+                                      onClick={() => void saveChannelIdeas(title)}
+                                    >
+                                      {saved ? "✓" : "+"}
+                                    </button>
+                                  </article>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
@@ -4569,7 +4669,10 @@ function App() {
                           </div>
                           <b>
                             ER{" "}
-                            {formatPercent(engagement(intelligence.bestEngagement), 2)}
+                            {formatPercent(
+                              engagementPercent(intelligence.bestEngagement),
+                              2,
+                            )}
                           </b>
                           <button
                             onClick={() => analyzeVideo(intelligence.bestEngagement!)}
@@ -5695,6 +5798,7 @@ function App() {
               saving={savingSettings}
               dirty={settingsDirty}
               onSave={() => void saveSettingsFromPanel()}
+              onDiscard={() => setSettings(persistedSettingsRef.current)}
               onTest={() => void testKeys()}
               onRefreshModels={() => void refreshModels()}
               onCopy={() =>

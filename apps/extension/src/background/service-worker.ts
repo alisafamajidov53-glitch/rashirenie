@@ -25,6 +25,7 @@ import {
   setStoredAiProviderCooldown,
   testAiKeys,
 } from "../lib/ai-direct";
+import { openDashboardPage } from "../lib/dashboard-link";
 import {
   getGoogleToken,
   hasGoogleSession,
@@ -764,9 +765,15 @@ async function handleMessage(
       const generation = authGeneration;
       const settings = await getSettings();
       const knownConnection = await hasGoogleConnection();
-      const tokenReady = await getGoogleToken(false, settings)
-        .then(() => true)
-        .catch(() => false);
+      // Only a known connection is worth a silent token refresh. Without one,
+      // the non-interactive OAuth flow loads Google's consent page in a hidden
+      // window on every popup open and every YouTube page load, only to fail
+      // with `interaction_required` for someone who never signed in.
+      const tokenReady = knownConnection
+        ? await getGoogleToken(false, settings)
+            .then(() => true)
+            .catch(() => false)
+        : false;
       if (generation !== authGeneration)
         throw new Error("Google session changed during auth check");
       const signedIn = knownConnection || tokenReady;
@@ -981,7 +988,7 @@ async function handleMessage(
       // Content scripts cannot call `chrome.runtime.openOptionsPage` — it is
       // absent from the content-script API surface, so the call threw and the
       // button silently did nothing. Opening it here works for every caller.
-      await chrome.runtime.openOptionsPage();
+      await openDashboardPage(message.page);
       return { opened: true };
     case "CLEAR_CACHES":
       await clearDashboardCache();
@@ -1108,20 +1115,34 @@ chrome.runtime.onInstalled.addListener(() => {
     "realtimeSamplesChannelIdV1",
     "youtubeQuotaPausedUntil",
   ]);
-  void ensureRealtimeAlarm();
   void ensurePlannerReminderAlarm();
-  void hasGoogleConnection().then((signedIn) => {
-    if (signedIn) void runRealtimeCollection().catch(() => undefined);
-  });
+  resumeRealtimeCollection();
 });
 chrome.runtime.onStartup.addListener(() => {
   void restrictLocalStorageAccess();
-  void ensureRealtimeAlarm();
   void ensurePlannerReminderAlarm();
-  void hasGoogleConnection().then((signedIn) => {
-    if (signedIn) void runRealtimeCollection().catch(() => undefined);
-  });
+  resumeRealtimeCollection();
 });
+
+/**
+ * Re-arms the collector for a connected account only. Scheduling it for a
+ * signed-out profile woke the worker every few minutes just to find nothing to
+ * collect; SIGN_IN creates the alarm when an account appears.
+ */
+function resumeRealtimeCollection(): void {
+  void hasGoogleConnection()
+    .then(async (signedIn) => {
+      if (!signedIn) {
+        await chrome.alarms.clear(REALTIME_ALARM);
+        return;
+      }
+      await ensureRealtimeAlarm();
+      await runRealtimeCollection();
+    })
+    .catch((error: unknown) =>
+      debugLog("realtime resume failed", { error: safeErrorMessage(error) }),
+    );
+}
 chrome.alarms.onAlarm.addListener((alarm) => {
   const logFailure = (error: unknown) =>
     debugLog(`${alarm.name} failed`, { error: safeErrorMessage(error) });
@@ -1137,7 +1158,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.notifications.onClicked.addListener((notificationId) => {
   if (!notificationId.startsWith("channelpilot-planner-")) return;
   void chrome.notifications.clear(notificationId);
-  void chrome.runtime.openOptionsPage();
+  // A publishing reminder is about the planner; it used to land on Overview.
+  void openDashboardPage("planner").catch(() => undefined);
 });
 
 void restrictLocalStorageAccess();

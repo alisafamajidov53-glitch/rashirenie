@@ -639,11 +639,48 @@ h2 {
 .section-heading > button {
   flex: 0 0 auto;
 }
+.settings-savebar {
+  position: sticky;
+  z-index: 30;
+  bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 16px 0 0 auto;
+  padding: 10px 10px 10px 16px;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+  border-radius: 16px;
+  background: rgba(var(--glass-strong-rgb, 22, 24, 36), 0.94);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(18px) saturate(140%);
+  animation: page-in 0.2s ease-out;
+}
+.settings-savebar .settings-unsaved {
+  margin-right: 6px;
+}
+.settings-savebar button {
+  min-height: 38px;
+}
+@media (max-width: 720px) {
+  .settings-savebar {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    width: 100%;
+  }
+  .settings-savebar .settings-unsaved {
+    flex: 1;
+    min-width: 0;
+  }
+}
+html[data-theme="light"] .settings-savebar {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 18px 44px rgba(42, 51, 74, 0.16);
+}
 .settings-unsaved {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 10px;
   color: var(--text);
   font-size: 12px;
   font-weight: 600;
@@ -4435,11 +4472,6 @@ html[data-theme="light"] .connection-actions > button:hover:not(:disabled) {
   min-height: 40px;
   padding: 0 13px;
 }
-.idea-composer button.active {
-  border-color: var(--purple);
-  color: white;
-  background: #31284a;
-}
 .idea-composer .primary-button {
   margin-left: auto;
 }
@@ -4908,6 +4940,19 @@ html[data-theme="light"] .planner-column.drop-target {
 }
 .goal-list button {
   height: 34px;
+}
+.goal-live {
+  justify-self: start;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+.goal-list article.reached u {
+  background: var(--green);
 }
 @media (max-width: 720px) {
   .planner-first-run {
@@ -5705,7 +5750,7 @@ html[data-theme="light"] .ai-control-grid select {
   border-color: #d9d1df;
   background: #fff;
 }
-html[data-theme="light"] .workspace-page button:where(:not(.primary-button)),
+html[data-theme="light"] .workspace-page button:where(:not(.primary-button, .active)),
 html[data-theme="light"] .data-actions button {
   color: #514858;
   border-color: #d8d0df;
@@ -6325,7 +6370,7 @@ nav button em {
 .export-menu > summary,
 .secondary-button,
 .data-actions button,
-.workspace-page button:where(:not(.primary-button)),
+.workspace-page button:where(:not(.primary-button, .active)),
 .asset-heading button,
 .thumbnail-moment-grid button,
 .precise-frame-controls > button,
@@ -7892,7 +7937,7 @@ html[data-theme="light"] .modal-copy p {
 }
 .ai-ideas-grid article {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
+  grid-template-columns: 26px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: start;
   padding: 12px;
@@ -7925,6 +7970,45 @@ html[data-theme="light"] .modal-copy p {
   color: var(--text, #f7f5fb);
   font-size: 13px;
   line-height: 1.4;
+}
+.ai-ideas h3 .ai-ideas-save-all {
+  min-height: 30px;
+  margin-left: auto;
+  padding: 0 11px;
+  font-size: 12px;
+}
+.ai-idea-save {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.12));
+  border-radius: 8px;
+  color: var(--purple-soft, #a994ff);
+  background: transparent;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.ai-idea-save:hover:not(:disabled) {
+  color: #fff;
+  border-color: transparent;
+  background: var(--purple);
+}
+.ai-idea-save.saved {
+  border-color: transparent;
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+  cursor: default;
+}
+html[data-theme="light"] .ai-idea-save:not(.saved) {
+  color: var(--accent-contrast, #4c34c4);
 }
 .ai-ideas-disclaimer {
   color: var(--muted-2, #716f7d);
@@ -9181,6 +9265,34 @@ html[data-theme="light"] .cohort-controls .filter-tabs button:not(.active):hover
   border-top-color: var(--glass-border);
   margin-top: 8px;
 }
+.menu-signout-confirm {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--glass-border);
+}
+.menu-signout-confirm small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.menu-signout-confirm button {
+  min-height: 38px;
+  font-size: 12px;
+}
+.dashboard-menu .menu-signout-confirm .menu-signout {
+  margin-top: 0;
+}
+.menu-signout-confirm .danger {
+  color: #fff;
+  border-color: transparent;
+  background: #c2392f;
+}
+.menu-signout-confirm .danger:hover:not(:disabled) {
+  color: #fff;
+  background: #d9483d;
+}
 .mobile-nav-more,
 .nav-label-short {
   display: none;
@@ -9224,6 +9336,9 @@ html[data-theme="light"] .cohort-controls .filter-tabs button:not(.active):hover
     width: auto;
     flex: 0 0 auto;
     gap: 8px;
+    /* An earlier breakpoint zeroes the margin; without auto the actions sat
+       right after the title with the rest of the bar empty. */
+    margin-left: auto;
     padding: 0;
   }
   .topbar-action-label {

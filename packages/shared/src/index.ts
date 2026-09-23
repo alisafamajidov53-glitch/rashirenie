@@ -21,3 +21,4 @@ export * from "./widget.js";
 export * from "./analysis-result.js";
 export * from "./channel-style.js";
 export * from "./youtube-url.js";
+export * from "./dashboard-page.js";
