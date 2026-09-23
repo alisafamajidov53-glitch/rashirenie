@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ChannelPilot · Popup preview</title>
+    <style>
+      /* The browser action popup is laid out by Chrome, not by the page: it
+         gets the width the stylesheet asks for and as much height as it needs,
+         up to 600px. The frame below reproduces those constraints so the popup
+         can be designed without loading the extension. */
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #202024;
+        font-family:
+          system-ui,
+          -apple-system,
+          "Segoe UI",
+          sans-serif;
+        color: #d9d7e0;
+      }
+      .frame {
+        width: 430px;
+        max-width: calc(100vw - 48px);
+        margin: 0 auto;
+        border-radius: 12px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+        overflow: hidden;
+      }
+      .frame > div {
+        max-height: 600px;
+        overflow: auto;
+      }
+      p {
+        max-width: 640px;
+        margin: 0 auto 16px;
+        font-size: 13px;
+        line-height: 1.5;
+        opacity: 0.75;
+      }
+      html[data-theme="light"] body > p {
+        color: #4c5368;
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <p>
+      Popup расширения в рамке 600&nbsp;px по высоте — ровно столько отводит Chrome.
+      Ширину задаёт сам popup.css.
+    </p>
+    <div class="frame"><div id="root"></div></div>
+    <script type="module" src="./popup-preview.ts"></script>
+  </body>
+</html>

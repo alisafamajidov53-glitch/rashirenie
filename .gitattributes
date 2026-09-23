@@ -1,0 +1,5 @@
+# Prettier (default endOfLine: lf) and CI expect LF. Without this, a Windows
+# checkout with core.autocrlf=true rewrites every file to CRLF and
+# `npm run check` fails on format:check.
+* text=auto eol=lf
+*.png binary

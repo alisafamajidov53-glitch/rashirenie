@@ -1,0 +1,33 @@
+{
+  "name": "channelpilot-mvp",
+  "version": "0.17.0",
+  "private": true,
+  "type": "module",
+  "description": "AI copilot for YouTube and YouTube Studio",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @channelpilot/shared && npm run build -w @channelpilot/extension && npm run build -w @channelpilot/api",
+    "dev:api": "npm run build -w @channelpilot/shared && npm run dev -w @channelpilot/api",
+    "dev:extension": "npm run build -w @channelpilot/shared && npm run dev -w @channelpilot/extension",
+    "typecheck": "npm run typecheck -w @channelpilot/shared && npm run build -w @channelpilot/shared && npm run typecheck -w @channelpilot/extension && npm run typecheck -w @channelpilot/api",
+    "test": "npm run test -w @channelpilot/shared && npm run test -w @channelpilot/api && npm run test:extension && npm run test:ui -w @channelpilot/extension",
+    "test:extension": "node --import tsx apps/extension/test/twelvelabs-direct.smoke.ts",
+    "test:browser-bridge": "npm run build -w @channelpilot/shared && npm run build -w @channelpilot/extension && node apps/extension/test/browser-media-bridge.smoke.mjs",
+    "lint": "eslint \"apps/**/*.{ts,tsx}\" \"packages/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,css,json,mjs}\" \"packages/**/*.{ts,tsx,json}\" \"docs/**/*.md\" \"*.{md,json}\"",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,css,json,mjs}\" \"packages/**/*.{ts,tsx,json}\" \"docs/**/*.md\" \"*.{md,json}\"",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "eslint": "^9.0.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "prettier": "^3.0.0",
+    "typescript-eslint": "^8.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

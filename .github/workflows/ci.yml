@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # `npm run check` = lint + format:check + typecheck + test + build.
+      # Running it as one step keeps the local command and CI identical: there
+      # is no CI-only pipeline that can drift from what a developer runs.
+      - name: Check
+        run: npm run check
+
+      - name: Upload extension build
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-dist
+          path: apps/extension/dist
+          retention-days: 14

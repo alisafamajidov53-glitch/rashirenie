@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "extension-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "--config", "apps/extension/test/preview.config.ts", "apps/extension"],
+      "port": 5174
+    }
+  ]
+}

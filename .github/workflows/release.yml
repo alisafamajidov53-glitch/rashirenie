@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Same gate as CI: a release is never built from code that fails checks.
+      - name: Check
+        run: npm run check
+
+      # The tag must name the version Chrome will show, otherwise users cannot
+      # tell which release they installed.
+      - name: Verify tag matches manifest version
+        run: |
+          version=$(node -p "require('./apps/extension/dist/manifest.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match manifest version $version"
+            exit 1
+          fi
+
+      - name: Package extension
+        run: cd apps/extension/dist && zip -rq "$GITHUB_WORKSPACE/channelpilot-extension-$GITHUB_REF_NAME.zip" .
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: |
+            Готовая сборка ChannelPilot для Chrome (Manifest V3).
+
+            1. Скачайте `channelpilot-extension-${{ github.ref_name }}.zip` и распакуйте в постоянную папку.
+            2. Откройте `chrome://extensions` и включите «Режим разработчика».
+            3. Нажмите «Загрузить распакованное расширение» и выберите распакованную папку.
+
+            Настройка Google OAuth и API-ключей описана в README.
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          "channelpilot-extension-$GITHUB_REF_NAME.zip"
+          --repo "$GITHUB_REPOSITORY"
+          --title "ChannelPilot $GITHUB_REF_NAME"
+          --notes "$NOTES"

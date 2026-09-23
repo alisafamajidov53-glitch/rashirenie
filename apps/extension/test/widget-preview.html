@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ChannelPilot · Widget preview</title>
+    <style>
+      /* A stand-in for the YouTube watch page: the widget is designed to sit on
+         top of this, so judging it on a blank white page would be misleading. */
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        min-height: 200vh;
+        font-family: Roboto, Arial, sans-serif;
+        color: #f1f1f1;
+        background: #0f0f0f;
+      }
+      ytd-masthead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        height: 56px;
+        padding: 0 16px;
+        background: #0f0f0f;
+        border-bottom: 1px solid #272727;
+      }
+      .yt-logo {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 20px;
+        font-weight: 700;
+        letter-spacing: -1px;
+      }
+      .yt-logo span {
+        display: grid;
+        place-items: center;
+        width: 30px;
+        height: 21px;
+        border-radius: 6px;
+        background: #ff0033;
+        font-size: 11px;
+      }
+      ytd-searchbox {
+        flex: 1;
+        max-width: 560px;
+        margin: 0 auto;
+      }
+      ytd-searchbox input {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 9px 14px;
+        border: 1px solid #303030;
+        border-radius: 999px;
+        color: #f1f1f1;
+        background: #121212;
+        font: inherit;
+        font-size: 14px;
+      }
+      #end {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-left: auto;
+      }
+      #buttons {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      #buttons button {
+        padding: 8px 14px;
+        border: 0;
+        border-radius: 999px;
+        color: #f1f1f1;
+        background: #272727;
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+      }
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(140deg, #4d7cff, #b14dff);
+      }
+      main {
+        display: grid;
+        grid-template-columns: 1fr 402px;
+        gap: 24px;
+        max-width: 1600px;
+        padding: 24px;
+      }
+      .player {
+        aspect-ratio: 16 / 9;
+        border-radius: 12px;
+        background: linear-gradient(140deg, #1e1a2e, #0c0c14);
+      }
+      h1 {
+        margin: 16px 0 6px;
+        font-size: 20px;
+      }
+      .meta {
+        color: #aaa;
+        font-size: 14px;
+      }
+      .rail div {
+        height: 94px;
+        margin-bottom: 8px;
+        border-radius: 10px;
+        background: #1c1c1c;
+      }
+      .controls {
+        position: fixed;
+        left: 12px;
+        bottom: 12px;
+        z-index: 2147483000;
+        display: flex;
+        gap: 6px;
+        padding: 8px;
+        border-radius: 12px;
+        background: #1c1c1cdd;
+        backdrop-filter: blur(8px);
+      }
+      .controls button {
+        padding: 6px 10px;
+        border: 1px solid #3a3a3a;
+        border-radius: 8px;
+        color: #eee;
+        background: #262626;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      @media (max-width: 700px) {
+        ytd-masthead {
+          gap: 10px;
+          padding: 0 12px;
+        }
+        .yt-logo {
+          flex: 0 0 auto;
+          font-size: 17px;
+        }
+        ytd-searchbox {
+          min-width: 0;
+          margin: 0;
+        }
+        #end {
+          display: none;
+        }
+        main {
+          display: block;
+          padding: 76px 12px 88px;
+        }
+        .rail {
+          display: none;
+        }
+        .controls {
+          right: 8px;
+          bottom: 8px;
+          left: 8px;
+          flex-wrap: wrap;
+          gap: 4px;
+          padding: 5px;
+        }
+        .controls button {
+          flex: 1 1 auto;
+          padding: 6px;
+          font-size: 11px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <ytd-masthead>
+      <div class="yt-logo"><span>▶</span>YouTube</div>
+      <ytd-searchbox><input placeholder="Search" /></ytd-searchbox>
+      <div id="end">
+        <div id="buttons"><button>Create</button><button>Notifications</button></div>
+        <div class="avatar"></div>
+      </div>
+    </ytd-masthead>
+    <main>
+      <div>
+        <div class="player"></div>
+        <h1>How we grew a channel to 100k in six months</h1>
+        <div class="meta">128,402 views · 3 days ago</div>
+      </div>
+      <div class="rail">
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+        <div></div>
+      </div>
+    </main>
+    <div class="controls">
+      <button data-action="panel">Toggle panel</button>
+      <button data-action="light">Light</button>
+      <button data-action="dark">Dark</button>
+      <button data-action="expand">Expand dock</button>
+      <button data-action="edit">Edit widget</button>
+    </div>
+    <script type="module" src="./widget-preview.ts"></script>
+  </body>
+</html>

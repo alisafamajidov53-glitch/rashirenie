@@ -1,0 +1,28 @@
+{
+  "name": "@channelpilot/extension",
+  "version": "0.17.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "test:ui": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@channelpilot/shared": "0.17.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.7.1",
+    "@types/chrome": "^0.1.4",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "happy-dom": "^20.14.5",
+    "typescript": "5.9.3",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  }
+}

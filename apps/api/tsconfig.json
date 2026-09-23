@@ -1,0 +1,10 @@
+{
+  // Checking config: covers src and test. Emitting uses tsconfig.build.json so
+  // rootDir stays at src and tests never reach dist.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src", "test"]
+}
