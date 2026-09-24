@@ -495,7 +495,9 @@ function userFacingError(error: unknown, language: SupportedLanguage): string {
   }
   if (
     error instanceof TypeError &&
-    /failed to fetch|networkerror|load failed|network/i.test(error.message)
+    // Chrome, Firefox and Safari wordings of a fetch that never got a
+    // response; a bare "network" also matched unrelated TypeErrors.
+    /failed to fetch|networkerror|load failed|network error/i.test(error.message)
   ) {
     return english
       ? "No connection to YouTube. Check your internet connection — the data will refresh on its own."
