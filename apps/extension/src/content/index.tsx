@@ -120,10 +120,18 @@ function openDashboard(page?: DashboardPage): void {
       // Only reachable when the extension was reloaded while this page stayed
       // open. A `window.open` fallback is not possible: the options page is not a
       // web-accessible resource, so a page-initiated navigation to it is blocked.
-      console.error("[ChannelPilot] Не удалось открыть кабинет:", error);
+      // The reason ("reload the page") used to go to the console only, so the
+      // button looked dead.
+      const message = error instanceof Error ? error.message : String(error);
+      dashboardOpenFailureListeners.forEach((listener) => listener(message));
     },
   );
 }
+/**
+ * Module-scoped rather than a `window` event: the page shares `window` events
+ * with this isolated world and could otherwise put its own text in our UI.
+ */
+const dashboardOpenFailureListeners = new Set<(message: string) => void>();
 
 type Tab = "optimize" | "analytics";
 /** Observation window the widget's counters are showing. */
@@ -3694,6 +3702,16 @@ function App() {
     const timer = window.setTimeout(() => setNotice(""), 2_600);
     return () => window.clearTimeout(timer);
   }, [notice]);
+  useEffect(() => {
+    const onDashboardOpenFailed = (message: string) => {
+      setDashboardError(message);
+      setError(message);
+    };
+    dashboardOpenFailureListeners.add(onDashboardOpenFailed);
+    return () => {
+      dashboardOpenFailureListeners.delete(onDashboardOpenFailed);
+    };
+  }, []);
   const [autoMediaNotice, setAutoMediaNotice] = useState<{
     fileName: string;
     status: "analyzing" | "ready" | "error";
