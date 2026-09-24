@@ -25,6 +25,7 @@ import {
   setStoredAiProviderCooldown,
   testAiKeys,
 } from "../lib/ai-direct";
+import { openDashboardPage } from "../lib/dashboard-link";
 import {
   getGoogleToken,
   hasGoogleSession,
@@ -269,9 +270,10 @@ function initialSyncWarning(error: unknown, settings: ExtensionSettings): string
       ? "Google is connected, but this account does not have a YouTube channel."
       : "Google подключён, но у выбранного аккаунта нет YouTube-канала.";
   }
+  const detail = userFacingError(error, settings.interfaceLanguage).slice(0, 320);
   return english
-    ? `Google is connected, but the first analytics sync failed: ${message.slice(0, 320)}`
-    : `Google подключён, но первая синхронизация аналитики не выполнена: ${message.slice(0, 320)}`;
+    ? `Google is connected, but the first analytics sync failed: ${detail}`
+    : `Google подключён, но первая синхронизация аналитики не выполнена: ${detail}`;
 }
 
 async function writeRealtimeStatus(
@@ -443,8 +445,7 @@ async function runRealtimeCollection(): Promise<RealtimeCollectorStatus | null> 
       const settings = await getSettings().catch(() => null);
       if (generation !== authGeneration) throw error;
       const english = settings?.interfaceLanguage === "en";
-      let message =
-        error instanceof Error ? error.message : "Realtime collection failed";
+      let message = userFacingError(error, english ? "en" : "ru");
       const limitKind = youtubeLimitKind(error);
       if (limitKind) {
         const resetInMs =
@@ -478,6 +479,31 @@ async function runRealtimeCollection(): Promise<RealtimeCollectorStatus | null> 
     // guard against ever nulling out a newer in-flight collection.
     if (realtimeCollection === task) realtimeCollection = null;
   }
+}
+
+/**
+ * The message a person sees for a failure. A dropped connection surfaced as
+ * "Failed to fetch" and a slow one as "signal is aborted without reason";
+ * both now say what happened and that nothing needs to be done.
+ */
+function userFacingError(error: unknown, language: SupportedLanguage): string {
+  const english = language === "en";
+  if (error instanceof DOMException && error.name === "TimeoutError") {
+    return english
+      ? "YouTube did not respond in time. The data will refresh on the next attempt."
+      : "YouTube не ответил вовремя. Данные обновятся при следующей попытке.";
+  }
+  if (
+    error instanceof TypeError &&
+    // Chrome, Firefox and Safari wordings of a fetch that never got a
+    // response; a bare "network" also matched unrelated TypeErrors.
+    /failed to fetch|networkerror|load failed|network error/i.test(error.message)
+  ) {
+    return english
+      ? "No connection to YouTube. Check your internet connection — the data will refresh on its own."
+      : "Нет связи с YouTube. Проверьте интернет — данные обновятся сами.";
+  }
+  return safeErrorMessage(error, english ? "Unknown error" : "Неизвестная ошибка");
 }
 
 function isUnauthorizedGoogleError(error: unknown): boolean {
@@ -764,9 +790,15 @@ async function handleMessage(
       const generation = authGeneration;
       const settings = await getSettings();
       const knownConnection = await hasGoogleConnection();
-      const tokenReady = await getGoogleToken(false, settings)
-        .then(() => true)
-        .catch(() => false);
+      // Only a known connection is worth a silent token refresh. Without one,
+      // the non-interactive OAuth flow loads Google's consent page in a hidden
+      // window on every popup open and every YouTube page load, only to fail
+      // with `interaction_required` for someone who never signed in.
+      const tokenReady = knownConnection
+        ? await getGoogleToken(false, settings)
+            .then(() => true)
+            .catch(() => false)
+        : false;
       if (generation !== authGeneration)
         throw new Error("Google session changed during auth check");
       const signedIn = knownConnection || tokenReady;
@@ -981,7 +1013,7 @@ async function handleMessage(
       // Content scripts cannot call `chrome.runtime.openOptionsPage` — it is
       // absent from the content-script API surface, so the call threw and the
       // button silently did nothing. Opening it here works for every caller.
-      await chrome.runtime.openOptionsPage();
+      await openDashboardPage(message.page);
       return { opened: true };
     case "CLEAR_CACHES":
       await clearDashboardCache();
@@ -1078,13 +1110,16 @@ chrome.runtime.onMessage.addListener(
         });
         sendResponse({ ok: true, data });
       })
-      .catch((error: unknown) => {
-        const safeError = safeErrorMessage(error, "Неизвестная ошибка");
+      .catch(async (error: unknown) => {
+        const language = await getSettings()
+          .then((settings) => settings.interfaceLanguage)
+          .catch((): SupportedLanguage => "ru");
+        const safeError = userFacingError(error, language);
         debugLog(message.type, {
           ok: false,
           from: context,
           ms: Math.round(performance.now() - startedAt),
-          error: safeError,
+          error: safeErrorMessage(error),
         });
         sendResponse({ ok: false, error: safeError });
       });
@@ -1108,20 +1143,34 @@ chrome.runtime.onInstalled.addListener(() => {
     "realtimeSamplesChannelIdV1",
     "youtubeQuotaPausedUntil",
   ]);
-  void ensureRealtimeAlarm();
   void ensurePlannerReminderAlarm();
-  void hasGoogleConnection().then((signedIn) => {
-    if (signedIn) void runRealtimeCollection().catch(() => undefined);
-  });
+  resumeRealtimeCollection();
 });
 chrome.runtime.onStartup.addListener(() => {
   void restrictLocalStorageAccess();
-  void ensureRealtimeAlarm();
   void ensurePlannerReminderAlarm();
-  void hasGoogleConnection().then((signedIn) => {
-    if (signedIn) void runRealtimeCollection().catch(() => undefined);
-  });
+  resumeRealtimeCollection();
 });
+
+/**
+ * Re-arms the collector for a connected account only. Scheduling it for a
+ * signed-out profile woke the worker every few minutes just to find nothing to
+ * collect; SIGN_IN creates the alarm when an account appears.
+ */
+function resumeRealtimeCollection(): void {
+  void hasGoogleConnection()
+    .then(async (signedIn) => {
+      if (!signedIn) {
+        await chrome.alarms.clear(REALTIME_ALARM);
+        return;
+      }
+      await ensureRealtimeAlarm();
+      await runRealtimeCollection();
+    })
+    .catch((error: unknown) =>
+      debugLog("realtime resume failed", { error: safeErrorMessage(error) }),
+    );
+}
 chrome.alarms.onAlarm.addListener((alarm) => {
   const logFailure = (error: unknown) =>
     debugLog(`${alarm.name} failed`, { error: safeErrorMessage(error) });
@@ -1137,7 +1186,8 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.notifications.onClicked.addListener((notificationId) => {
   if (!notificationId.startsWith("channelpilot-planner-")) return;
   void chrome.notifications.clear(notificationId);
-  void chrome.runtime.openOptionsPage();
+  // A publishing reminder is about the planner; it used to land on Overview.
+  void openDashboardPage("planner").catch(() => undefined);
 });
 
 void restrictLocalStorageAccess();

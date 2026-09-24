@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { SupportedLanguage } from "@channelpilot/shared";
 
 const tr = (language: SupportedLanguage, ru: string, en: string) =>
@@ -126,6 +126,9 @@ export function DashboardTopbar({
   onExportAi: () => void;
 }) {
   const menu = useDismissibleDetails();
+  // Signing out deletes the collected realtime history, so it takes a second,
+  // explicit step inside the menu.
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const run = (action: () => void) => {
     if (menu.current) menu.current.open = false;
     action();
@@ -156,7 +159,13 @@ export function DashboardTopbar({
               : tr(language, "Войти", "Sign in")}
           </button>
         )}
-        <details ref={menu} className="export-menu dashboard-menu">
+        <details
+          ref={menu}
+          className="export-menu dashboard-menu"
+          onToggle={(event) => {
+            if (!event.currentTarget.open) setConfirmingSignOut(false);
+          }}
+        >
           <summary
             aria-label={tr(language, "Действия и настройки", "Actions and settings")}
           >
@@ -219,15 +228,40 @@ export function DashboardTopbar({
                 JSON · {tr(language, "AI-анализ", "AI analysis")}
               </button>
             )}
-            {signedIn && (
-              <button
-                className="menu-signout"
-                disabled={loading}
-                onClick={() => run(onSignOut)}
-              >
-                {tr(language, "Выйти", "Sign out")}
-              </button>
-            )}
+            {signedIn &&
+              (confirmingSignOut ? (
+                <div className="menu-signout-confirm" role="group">
+                  <small>
+                    {tr(
+                      language,
+                      "Накопленная статистика просмотров будет удалена.",
+                      "Collected view statistics will be deleted.",
+                    )}
+                  </small>
+                  <button
+                    className="menu-signout danger"
+                    disabled={loading}
+                    autoFocus
+                    onClick={() => {
+                      setConfirmingSignOut(false);
+                      run(onSignOut);
+                    }}
+                  >
+                    {tr(language, "Да, выйти", "Yes, sign out")}
+                  </button>
+                  <button onClick={() => setConfirmingSignOut(false)}>
+                    {tr(language, "Отмена", "Cancel")}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className="menu-signout"
+                  disabled={loading}
+                  onClick={() => setConfirmingSignOut(true)}
+                >
+                  {tr(language, "Выйти", "Sign out")}
+                </button>
+              ))}
           </div>
         </details>
       </div>

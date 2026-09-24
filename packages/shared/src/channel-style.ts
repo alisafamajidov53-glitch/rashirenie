@@ -1,3 +1,4 @@
+import { median } from "./analytics.js";
 import type { ChannelSummary, VideoSummary } from "./types.js";
 
 export const CHANNEL_CONTEXT_MAX_LENGTH = 4_000;
@@ -13,15 +14,6 @@ export interface ChannelStyleSource {
 const DAY_MS = 86_400_000;
 const EMOJI = /\p{Extended_Pictographic}/u;
 const CAPS_WORD = /(?<![\p{L}\p{N}])\p{Lu}{3,}(?![\p{L}\p{N}])/u;
-
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-  return sorted.length % 2
-    ? sorted[middle]!
-    : (sorted[middle - 1]! + sorted[middle]!) / 2;
-}
 
 function percent(part: number, whole: number): number {
   return whole > 0 ? Math.round((part / whole) * 100) : 0;

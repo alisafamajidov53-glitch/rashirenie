@@ -19,9 +19,10 @@ flowchart TD
 
 ### Extension
 
-Content script отвечает за UI, интеграцию с видимыми полями и, только после
-явного разрешения пользователя, прямую передачу выбранного media в AI API. Он
-не вызывает private API Studio. Service worker владеет OAuth, YouTube API,
+Content script отвечает за UI и интеграцию с видимыми полями. Выбранный в Studio
+файл, только после явного разрешения пользователя, уходит в AI API из скрытого
+media-bridge iframe с origin расширения: ключи провайдеров не попадают в
+процесс страницы. Private API Studio не вызываются. Service worker владеет OAuth, YouTube API,
 кэшем, workspace-хранилищем, напоминаниями и минутным sampling. Все сообщения
 типизированы и проверяются во время выполнения через `@channelpilot/shared`.
 
@@ -83,7 +84,7 @@ UI валидирует и дедуплицирует моменты, а ред�
 | Признак Google-подключения и номер аккаунта  | `chrome.storage.local`             | до явного выхода/смены Client ID                           |
 | Выбор AI provider и моделей                  | `chrome.storage.local`             | до удаления extension                                      |
 | Google Client ID, YouTube API key и AI keys  | `chrome.storage.local`             | до очистки/удаления extension                              |
-| Realtime samples                             | `chrome.storage.local`             | скользящие 50 часов, максимум 80 активных серий            |
+| Realtime samples                             | `chrome.storage.local`             | скользящие 50 часов, максимум 56 активных серий            |
 | Видимость виджета/AI-кнопки                  | `chrome.storage.local`             | до изменения пользователем                                 |
 | Тема, плотность, положение панели            | `chrome.storage.local`             | до изменения/сброса пользователем                          |
 | Конкуренты, идеи, planner, goals, AI history | `chrome.storage.local`             | нормализуется и ограничивается по количеству записей       |

@@ -57,7 +57,17 @@ it("locks popup actions while saving visibility and starts onboarding at the top
 
   const root = document.getElementById("root")!;
   root.scrollTop = 320;
+  // The first click only asks: signing out deletes the collected statistics.
   await act(async () => signOut!.click());
+  expect(document.querySelector('[role="alertdialog"]')?.textContent).toContain(
+    "Collected view statistics will be deleted",
+  );
+  expect(document.body.textContent).not.toContain(
+    "Video decisions — directly in Studio",
+  );
+  const confirm = document.querySelector<HTMLButtonElement>(".signout-confirm .danger");
+  expect(confirm).not.toBeNull();
+  await act(async () => confirm!.click());
 
   expect(root.scrollTop).toBe(0);
   expect(document.body.textContent).toContain("Video decisions — directly in Studio");

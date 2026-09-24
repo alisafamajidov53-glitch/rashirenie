@@ -19,11 +19,17 @@ if (themeParam === "light" || themeParam === "dark")
 if (params.get("lang") === "en") fixture.settings.interfaceLanguage = "en";
 const initialView = params.get("view") ?? "panel";
 if (params.get("controls") === "0") document.querySelector(".controls")?.remove();
-// `?state=signedout|offline` renders the widget's sign-in and error states.
+// `?state=signedout|offline|stale` renders the widget's sign-in and error
+// states; "stale" loads data first and then fails a refresh.
 const state = params.get("state");
 if (state === "signedout")
   await fixture.chrome.runtime.sendMessage({ type: "SIGN_OUT" });
 if (state === "offline") fixture.setOffline(true);
+if (state === "stale")
+  window.setTimeout(() => {
+    fixture.setOffline(true);
+    window.dispatchEvent(new Event("online"));
+  }, 1_000);
 Object.defineProperty(window, "chrome", { configurable: true, value: fixture.chrome });
 
 await import("../src/content/index");

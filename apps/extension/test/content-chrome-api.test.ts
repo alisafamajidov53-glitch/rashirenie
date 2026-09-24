@@ -54,7 +54,9 @@ describe("content script chrome API boundary", () => {
 
   it("opens the dashboard through the service worker", () => {
     // The replacement for the five dead `openOptionsPage()` call sites.
-    expect(CONTENT_SOURCE).toContain('rpc({ type: "OPEN_OPTIONS_PAGE" })');
-    expect(CONTENT_SOURCE).toContain("function openDashboard()");
+    expect(CONTENT_SOURCE).toMatch(/rpc\(\{ type: "OPEN_OPTIONS_PAGE"/);
+    expect(CONTENT_SOURCE).toMatch(/function openDashboard\(page\?: DashboardPage\)/);
+    // lib/dashboard-link calls openOptionsPage itself: extension pages only.
+    expect(CONTENT_SOURCE).not.toContain("dashboard-link");
   });
 });

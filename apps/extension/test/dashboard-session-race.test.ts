@@ -115,6 +115,8 @@ describe("dashboard session boundary", () => {
 
   it("does not report an old token as signed in after sign-out", async () => {
     vi.clearAllMocks();
+    // A silent refresh is only attempted for a known connection.
+    vi.mocked(hasGoogleSession).mockResolvedValueOnce(true);
     const tokenRequested = deferred<void>();
     const tokenResult = deferred<string>();
     vi.mocked(getGoogleToken).mockImplementationOnce(async () => {
@@ -148,5 +150,14 @@ describe("dashboard session boundary", () => {
       ok: false,
       error: expect.stringContaining("Google session changed"),
     });
+  });
+
+  it("does not start a silent Google flow for an account that never connected", async () => {
+    vi.clearAllMocks();
+    await expect(send("AUTH_STATUS")).resolves.toMatchObject({
+      ok: true,
+      data: { signedIn: false, tokenReady: false, reauthRequired: false },
+    });
+    expect(getGoogleToken).not.toHaveBeenCalled();
   });
 });

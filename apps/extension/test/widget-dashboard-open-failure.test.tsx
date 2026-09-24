@@ -21,11 +21,18 @@ afterAll(async () => {
   vi.unstubAllGlobals();
 });
 
-it("explains a failed first analytics load and recovers on retry", async () => {
+it("says why the dashboard did not open instead of leaving a dead button", async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.useFakeTimers();
   const fixture = createChromeFixture();
-  fixture.setOffline(true);
+  const sendMessage = fixture.chrome.runtime.sendMessage.bind(fixture.chrome.runtime);
+  // What Chrome does for an orphaned content script after an extension update.
+  fixture.chrome.runtime.sendMessage = (async (message: { type: string }) => {
+    if (message.type === "OPEN_OPTIONS_PAGE") {
+      throw new Error("Extension context invalidated.");
+    }
+    return sendMessage(message as never);
+  }) as typeof fixture.chrome.runtime.sendMessage;
   vi.stubGlobal("chrome", fixture.chrome);
   vi.stubGlobal("location", new URL("https://www.youtube.com/watch?v=abcdefghijk"));
   document.body.innerHTML = "";
@@ -42,42 +49,17 @@ it("explains a failed first analytics load and recovers on retry", async () => {
       .querySelector<HTMLButtonElement>('button[aria-label="Open detailed analytics"]')!
       .click();
   });
-  const failure = shadow().querySelector('.cp-widget-login[role="alert"]');
-  expect(failure?.textContent).toContain("Could not load analytics");
-  expect(failure?.textContent).toContain("Offline test");
-
-  fixture.setOffline(false);
+  const dashboardButton = [
+    ...shadow().querySelectorAll<HTMLButtonElement>(".cp-widget-footer-actions button"),
+  ].find((button) => button.textContent === "Dashboard");
+  expect(dashboardButton).toBeDefined();
   await act(async () => {
-    failure!.querySelector("button")!.click();
+    dashboardButton!.click();
   });
   await act(async () => {
     await vi.advanceTimersByTimeAsync(50);
   });
-  expect(shadow().querySelector('.cp-widget-login[role="alert"]')).toBeNull();
-  // The optimisation tab must not inherit the analytics error either.
-  expect(shadow().querySelector(".cp-error")).toBeNull();
-
-  // A later refresh that fails keeps the numbers but says they are old.
-  fixture.setOffline(true);
-  await act(async () => {
-    shadow()
-      .querySelector<HTMLButtonElement>('.cp-realtime button[aria-label="Refresh"]')!
-      .click();
-  });
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(50);
-  });
-  const alert = shadow().querySelector(".cp-widget-alert");
-  expect(alert?.textContent).toContain("Data not refreshed");
-  expect(alert?.textContent).toContain("Offline test");
-  expect(shadow().querySelector(".cp-widget-periods")).not.toBeNull();
-
-  fixture.setOffline(false);
-  await act(async () => {
-    alert!.querySelector("button")!.click();
-  });
-  await act(async () => {
-    await vi.advanceTimersByTimeAsync(50);
-  });
-  expect(shadow().querySelector(".cp-widget-alert")).toBeNull();
+  expect(shadow().querySelector(".cp-widget-alert")?.textContent).toContain(
+    "Reload the page",
+  );
 });

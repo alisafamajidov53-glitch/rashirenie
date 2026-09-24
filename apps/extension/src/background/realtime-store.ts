@@ -16,25 +16,27 @@ const STORAGE_KEY = "realtimeSamplesV2";
 const CHANNEL_KEY = "realtimeSamplesChannelIdV2";
 const MAX_OUT_OF_ORDER_DRIFT_MS = 2 * 60_000;
 
-type SampleMap = Record<string, RealtimePoint[]>;
+export type SampleMap = Record<string, RealtimePoint[]>;
 let saveQueue: Promise<void> = Promise.resolve();
 
-async function readSamples(): Promise<SampleMap> {
-  const result = await chrome.storage.local.get(STORAGE_KEY);
-  const value = result[STORAGE_KEY];
-  return value && typeof value === "object" ? (value as SampleMap) : {};
-}
-
+/**
+ * Appends one observation per series and returns the stored map, so the caller
+ * can derive its statistics without reading the whole blob back — up to ~2 MB
+ * that used to be deserialised three more times on every collection.
+ */
 export async function saveSamples(
   videos: Array<{ id: string; views: number }>,
   capturedAt = Date.now(),
   channelId?: string,
-): Promise<void> {
-  const task = saveQueue.then(async () => {
-    const channelState = channelId ? await chrome.storage.local.get(CHANNEL_KEY) : {};
-    const storedChannelId = channelState[CHANNEL_KEY];
-    const channelChanged = Boolean(channelId) && storedChannelId !== channelId;
-    const samples = channelChanged ? {} : await readSamples();
+): Promise<SampleMap> {
+  const task = saveQueue.then(async (): Promise<SampleMap> => {
+    const stored = await chrome.storage.local.get([STORAGE_KEY, CHANNEL_KEY]);
+    const channelChanged = Boolean(channelId) && stored[CHANNEL_KEY] !== channelId;
+    const storedSamples = stored[STORAGE_KEY];
+    const samples: SampleMap =
+      !channelChanged && storedSamples && typeof storedSamples === "object"
+        ? (storedSamples as SampleMap)
+        : {};
     // Preserve sub-minute counter changes. Older builds rounded every request
     // to the minute, so 100 -> 101 inside the same minute overwrote the
     // baseline and the first view disappeared. Unchanged counters still keep
@@ -86,13 +88,18 @@ export async function saveSamples(
       // set. Keep a small churn buffer without retaining every historical
       // upload forever.
       .slice(0, 56);
+    const saved: SampleMap = Object.fromEntries(newestSeries);
     await chrome.storage.local.set({
-      [STORAGE_KEY]: Object.fromEntries(newestSeries),
+      [STORAGE_KEY]: saved,
       ...(channelId ? { [CHANNEL_KEY]: channelId } : {}),
     });
+    return saved;
   });
-  saveQueue = task.catch(() => undefined);
-  await task;
+  saveQueue = task.then(
+    () => undefined,
+    () => undefined,
+  );
+  return task;
 }
 
 export async function clearRealtimeSamples(): Promise<void> {
@@ -100,27 +107,26 @@ export async function clearRealtimeSamples(): Promise<void> {
   await chrome.storage.local.remove([STORAGE_KEY, CHANNEL_KEY]);
 }
 
-export async function getObservedStats(videoIds: string[]): Promise<
-  Record<
-    string,
-    {
-      views: number;
-      observedMinutes: number;
-      viewsLast24Hours: number;
-      observedMinutes24Hours: number;
-      viewsLast48Hours: number;
-      observedMinutes48Hours: number;
-      viewsLast15Minutes: number;
-      observedMinutesLast15: number;
-      viewsPerMinuteLast15: number;
-      previous15MinutesViews: number;
-      previousObservedMinutes15: number;
-      previousViewsPerMinute15: number;
-      velocityTrendPercent: number;
-    }
-  >
-> {
-  const samples = await readSamples();
+export interface ObservedStats {
+  views: number;
+  observedMinutes: number;
+  viewsLast24Hours: number;
+  observedMinutes24Hours: number;
+  viewsLast48Hours: number;
+  observedMinutes48Hours: number;
+  viewsLast15Minutes: number;
+  observedMinutesLast15: number;
+  viewsPerMinuteLast15: number;
+  previous15MinutesViews: number;
+  previousObservedMinutes15: number;
+  previousViewsPerMinute15: number;
+  velocityTrendPercent: number;
+}
+
+export function observedStats(
+  samples: SampleMap,
+  videoIds: string[],
+): Record<string, ObservedStats> {
   return Object.fromEntries(
     videoIds.map((id) => [
       id,
@@ -142,7 +148,9 @@ export async function getObservedStats(videoIds: string[]): Promise<
   );
 }
 
-export async function getRealtimeSeries(videoIds: string[]): Promise<RealtimePoint[]> {
-  const samples = await readSamples();
+export function realtimeSeries(
+  samples: SampleMap,
+  videoIds: string[],
+): RealtimePoint[] {
   return aggregateRealtimeSeries(videoIds.map((id) => samples[id] ?? []));
 }

@@ -16,14 +16,6 @@ export const DEFAULT_GEMINI_MODEL = "gemini-3.8-flash";
 export const DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b";
 export const DEFAULT_TWELVELABS_MODEL = "pegasus1.5";
 
-/** Flash models that support agentic video processing (Gemini API, Sep 2026). */
-export const GEMINI_AGENTIC_VIDEO_MODELS: readonly string[] = [
-  "gemini-3.8-flash",
-  "gemini-3.7-flash",
-  "gemini-3.6-flash",
-  "gemini-3.5-flash-lite",
-];
-
 export const GEMINI_MODEL_OPTIONS: AiModelOption[] = [
   {
     id: "gemini-3.8-flash",
@@ -116,10 +108,6 @@ export function normalizeGeminiModel(model: string): string {
     return DEFAULT_GEMINI_MODEL;
   }
   return normalized;
-}
-
-export function supportsGeminiAgenticVideo(model: string): boolean {
-  return GEMINI_AGENTIC_VIDEO_MODELS.includes(normalizeGeminiModel(model));
 }
 
 export function normalizeGroqModel(model: string): string {

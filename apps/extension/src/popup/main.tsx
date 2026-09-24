@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  bucketAverage,
   DEFAULT_EXTENSION_SETTINGS,
   diffExtensionSettings,
   formatMetric,
@@ -8,17 +9,19 @@ import {
   GEMINI_MODEL_OPTIONS,
   GROQ_MODEL_OPTIONS,
   TWELVELABS_MODEL_OPTIONS,
+  hourlyPace,
   isGoogleClientId,
   normalizeExtensionSettings,
   realtimeWindowCoverage,
+  smoothTrendPath,
   type AiProvider,
   type DashboardData,
   type ExtensionSettings,
   type GoogleAuthStatus,
   type GoogleSignInResult,
   type SupportedLanguage,
-  type VideoSummary,
 } from "@channelpilot/shared";
+import { openDashboardPage } from "../lib/dashboard-link";
 import { rpc } from "../lib/rpc";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 import { useInterfacePreferences } from "../hooks/useInterfacePreferences";
@@ -28,16 +31,15 @@ function compact(value: number): string {
   return formatMetric(value);
 }
 
-function hourlyPace(video: VideoSummary): number {
-  return video.observedMinutes >= 5
-    ? (video.observedViewsLastHour / video.observedMinutes) * 60
-    : 0;
-}
-
 function tr(language: SupportedLanguage, ru: string, en: string): string {
   return language === "ru" ? ru : en;
 }
 
+/**
+ * The 28-day trend, drawn like the on-page widget's chart: smoothed, on a zero
+ * baseline, with the latest day marked. The popup used to draw its own jagged
+ * polyline with a different scale.
+ */
 function Sparkline({
   values,
   language,
@@ -45,45 +47,44 @@ function Sparkline({
   values: number[];
   language: SupportedLanguage;
 }) {
+  const gradientId = `popup-trend-${useId()}`;
   if (values.length < 2)
     return (
       <div className="empty-chart">
         {tr(language, "Недостаточно данных", "Not enough data")}
       </div>
     );
-  const width = 330;
-  const height = 68;
-  const max = Math.max(...values, 1);
-  const points = values
-    .map((value, index) => {
-      const x = (index / (values.length - 1)) * width;
-      const y = height - (value / max) * (height - 8) - 4;
-      return `${x},${y}`;
-    })
-    .join(" ");
+  const { line, area, last } = smoothTrendPath(bucketAverage(values, 48), 330, 68);
   return (
     <svg
       className="sparkline"
-      viewBox={`0 0 ${width} ${height}`}
+      viewBox="0 0 330 68"
+      preserveAspectRatio="none"
       aria-label={tr(language, "Просмотры за 28 дней", "Views over the last 28 days")}
       role="img"
     >
       <defs>
-        <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop className="spark-stop" offset="0%" stopOpacity=".3" />
           <stop className="spark-stop" offset="100%" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <polygon
-        points={`0,${height} ${points} ${width},${height}`}
-        fill="url(#spark-fill)"
-      />
-      <polyline
-        points={points}
+      <path d={area} fill={`url(#${gradientId})`} />
+      <path
+        d={line}
         fill="none"
         className="spark-line"
-        strokeWidth="3"
+        strokeWidth="2.5"
         strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      <line
+        className="spark-now"
+        x1={last.x}
+        x2={last.x}
+        y1={last.y}
+        y2={68}
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );
@@ -102,6 +103,9 @@ function App() {
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [preferencesSaved, setPreferencesSaved] = useState(false);
   const [copied, setCopied] = useState(false);
+  // Signing out deletes the collected realtime history (up to 50 hours of
+  // samples) and it was one click away from "Open dashboard".
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const loadRequestIdRef = useRef(0);
   const persistedSettingsRef = useRef<ExtensionSettings>(DEFAULT_EXTENSION_SETTINGS);
   const persistedInterfaceLanguageRef = useRef<SupportedLanguage>(
@@ -331,6 +335,7 @@ function App() {
 
   async function signOut() {
     if (loading || visibilitySaving) return;
+    setConfirmingSignOut(false);
     const requestId = ++loadRequestIdRef.current;
     setLoading(true);
     setError("");
@@ -535,7 +540,7 @@ function App() {
           </button>
           <button
             className="setup-link"
-            onClick={() => void chrome.runtime.openOptionsPage()}
+            onClick={() => void openDashboardPage("settings")}
           >
             {tr(language, "Открыть подключения", "Open connections")}
           </button>
@@ -804,7 +809,7 @@ function App() {
           </div>
           <button
             className="setup-link"
-            onClick={() => void chrome.runtime.openOptionsPage()}
+            onClick={() => void openDashboardPage("settings")}
           >
             {tr(
               language,
@@ -853,7 +858,7 @@ function App() {
                 </strong>
                 <span>{data.analyticsWarnings![0]}</span>
               </div>
-              <button onClick={() => void chrome.runtime.openOptionsPage()}>
+              <button onClick={() => void openDashboardPage()}>
                 {tr(language, "Проверить", "Check")}
               </button>
             </section>
@@ -910,25 +915,34 @@ function App() {
               <span>{tr(language, "Всё время", "All time")}</span>
               <b>{compact(data.channel.views)}</b>
               <em>
-                {compact(total28)} {tr(language, "за 28 дней", "in 28 days")}
+                {/* "за 28 дней" wrapped onto a second line in a third of the popup. */}
+                {compact(total28)} · {tr(language, "28 дн.", "28d")}
               </em>
             </article>
           </section>
-          <section className="subscriber-flow">
-            <article>
-              <span>{tr(language, "Подписались · 28д", "Gained · 28d")}</span>
+          {/* One row instead of three cards: in a third of the popup the labels
+              "Подписались · 28д" / "Чистый прирост" were cut to "Подписалис…". */}
+          <section
+            className="subscriber-flow"
+            aria-label={tr(language, "Подписчики за 28 дней", "Subscribers, 28 days")}
+          >
+            <span className="subscriber-flow-title">
+              {tr(language, "Подписчики · 28 дней", "Subscribers · 28 days")}
+            </span>
+            <span className="subscriber-flow-stat">
               <b className="up">+{compact(subscribersGained28)}</b>
-            </article>
-            <article>
-              <span>{tr(language, "Отписались · 28д", "Lost · 28d")}</span>
+              <small>{tr(language, "пришли", "gained")}</small>
+            </span>
+            <span className="subscriber-flow-stat">
               <b className="down">−{compact(subscribersLost28)}</b>
-            </article>
-            <article>
-              <span>{tr(language, "Чистый прирост", "Net growth")}</span>
+              <small>{tr(language, "ушли", "lost")}</small>
+            </span>
+            <span className="subscriber-flow-stat net">
               <b className={subscribersNet28 >= 0 ? "up" : "down"}>
                 {formatSignedMetric(subscribersNet28)}
               </b>
-            </article>
+              <small>{tr(language, "итог", "net")}</small>
+            </span>
           </section>
 
           <section className="chart-card">
@@ -1024,6 +1038,20 @@ function App() {
             })}
           </section>
         </>
+      ) : loading ? (
+        // The first dashboard read can take a few seconds. Showing the "waiting
+        // for YouTube data — check your APIs" card during it made every normal
+        // popup open look like a setup problem.
+        <section className="popup-skeleton" aria-hidden="true">
+          <i className="skeleton-row" />
+          <div className="skeleton-grid">
+            <i />
+            <i />
+            <i />
+          </div>
+          <i className="skeleton-row thin" />
+          <i className="skeleton-block" />
+        </section>
       ) : signedIn ? (
         <section className="signin">
           <span className="eyebrow">
@@ -1060,26 +1088,57 @@ function App() {
       )}
 
       <footer className={signedIn && data ? "popup-footer sticky" : "popup-footer"}>
-        <button
-          className="dashboard-link"
-          onClick={() => void chrome.runtime.openOptionsPage()}
-        >
-          {tr(language, "Открыть кабинет", "Open dashboard")}
-        </button>
-        {signedIn && (
-          <button onClick={() => void signOut()} disabled={loading || visibilitySaving}>
-            {tr(language, "Выйти", "Sign out")}
-          </button>
+        {confirmingSignOut ? (
+          <div
+            className="signout-confirm"
+            role="alertdialog"
+            aria-labelledby="signout-confirm-text"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") setConfirmingSignOut(false);
+            }}
+          >
+            <span id="signout-confirm-text">
+              {tr(
+                language,
+                "Выйти из Google? Накопленная статистика просмотров будет удалена.",
+                "Sign out of Google? Collected view statistics will be deleted.",
+              )}
+            </span>
+            <button autoFocus onClick={() => setConfirmingSignOut(false)}>
+              {tr(language, "Отмена", "Cancel")}
+            </button>
+            <button
+              className="danger"
+              onClick={() => void signOut()}
+              disabled={loading || visibilitySaving}
+            >
+              {tr(language, "Выйти", "Sign out")}
+            </button>
+          </div>
+        ) : (
+          <>
+            <button className="dashboard-link" onClick={() => void openDashboardPage()}>
+              {tr(language, "Открыть кабинет", "Open dashboard")}
+            </button>
+            {signedIn && (
+              <button
+                onClick={() => setConfirmingSignOut(true)}
+                disabled={loading || visibilitySaving}
+              >
+                {tr(language, "Выйти", "Sign out")}
+              </button>
+            )}
+            <span>
+              {tr(language, "Данные обновлены", "Data updated")}{" "}
+              {data
+                ? new Date(data.sampledAt).toLocaleTimeString(language, {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })
+                : "—"}
+            </span>
+          </>
         )}
-        <span>
-          {tr(language, "Данные обновлены", "Data updated")}{" "}
-          {data
-            ? new Date(data.sampledAt).toLocaleTimeString(language, {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : "—"}
-        </span>
       </footer>
     </main>
   );

@@ -159,6 +159,7 @@ export function createChromeFixture() {
   let signedIn = true;
   let offline = false;
   let workspace: WorkspaceState = DEFAULT_WORKSPACE_STATE;
+  const sessionStore: Record<string, unknown> = {};
   return {
     settings,
     dashboard,
@@ -283,6 +284,21 @@ export function createChromeFixture() {
       },
       storage: {
         local: { get: async () => ({}), set: async () => {} },
+        // Enough of chrome.storage.session for the dashboard's deep links.
+        session: {
+          get: async (key: string) =>
+            key in sessionStore ? { [key]: sessionStore[key] } : {},
+          set: async (values: Record<string, unknown>) => {
+            Object.assign(sessionStore, values);
+            const changes = Object.fromEntries(
+              Object.entries(values).map(([key, newValue]) => [key, { newValue }]),
+            );
+            storageListeners.forEach((listener) => listener(changes, "session"));
+          },
+          remove: async (key: string) => {
+            delete sessionStore[key];
+          },
+        },
         onChanged: {
           addListener: (listener: (...args: unknown[]) => void) =>
             storageListeners.add(listener),

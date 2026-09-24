@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
+  type AnalysisResult,
   buildChannelStyleContext,
   calculateSeoChecklist,
   calculateVideoPerformanceScore,
@@ -7,6 +8,7 @@ import {
   normalizeWorkspaceState,
   parsePlannerCsv,
   serializePlannerCsv,
+  type ChannelGoal,
   type CompetitorSnapshot,
   type CommentDraft,
   type ContentIdea,
@@ -86,6 +88,36 @@ function frequentTerms(values: string[], limit = 8): string[] {
 
 function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** Idea-bank capacity; normalizeWorkspaceState trims anything beyond it. */
+export const IDEA_LIMIT = 300;
+
+/**
+ * AI titles as idea-bank entries. Shared by the Ideas page and the overview's
+ * channel-growth ideas, which used to be shown once and lost on reload.
+ */
+export function contentIdeasFromResult(
+  result: AnalysisResult,
+  format: ContentIdea["format"],
+  difficulty: ContentIdea["difficulty"],
+  createdAt = new Date().toISOString(),
+): ContentIdea[] {
+  return result.titles.slice(0, 10).map((title, index) => ({
+    id: uid("idea"),
+    title,
+    angle:
+      result.shortsIdeas[index]?.hook ??
+      result.recommendations[index % Math.max(1, result.recommendations.length)] ??
+      result.contentInsights.primaryHook,
+    format,
+    difficulty,
+    // A packaging-quality estimate from the AI title score, not search demand;
+    // the label in the UI makes that distinction explicit.
+    interest: result.titleScores[index]?.total ?? 50,
+    source: "ai",
+    createdAt,
+  }));
 }
 
 function download(filename: string, value: string, type: string): void {
@@ -548,7 +580,7 @@ export function IdeasPage({
       );
       return;
     }
-    if (workspace.ideas.length > 290) {
+    if (workspace.ideas.length > IDEA_LIMIT - 10) {
       onError(
         tr(
           language,
@@ -597,32 +629,18 @@ export function IdeasPage({
         settings.preferredProvider,
       );
       const createdAt = new Date().toISOString();
-      const additions: ContentIdea[] = result.titles
-        .slice(0, 10)
-        .map((title, index) => ({
-          id: uid("idea"),
-          title,
-          angle:
-            result.shortsIdeas[index]?.hook ??
-            result.recommendations[
-              index % Math.max(1, result.recommendations.length)
-            ] ??
-            result.contentInsights.primaryHook,
-          format,
-          difficulty:
-            ideaStyle === "documentary" ||
-            ideaStyle === "experiment" ||
-            ideaStyle === "challenge"
-              ? "hard"
-              : format === "shorts"
-                ? "easy"
-                : "medium",
-          // This is a packaging-quality estimate from the AI title score, not
-          // search demand. The label in the UI makes that distinction explicit.
-          interest: result.titleScores[index]?.total ?? 50,
-          source: "ai",
-          createdAt,
-        }));
+      const additions = contentIdeasFromResult(
+        result,
+        format,
+        ideaStyle === "documentary" ||
+          ideaStyle === "experiment" ||
+          ideaStyle === "challenge"
+          ? "hard"
+          : format === "shorts"
+            ? "easy"
+            : "medium",
+        createdAt,
+      );
       if (additions.length === 0) {
         throw new Error(
           tr(
@@ -634,7 +652,7 @@ export function IdeasPage({
       }
       if (
         !(await onWorkspace((current) => {
-          if (current.ideas.length + additions.length > 300) {
+          if (current.ideas.length + additions.length > IDEA_LIMIT) {
             throw new Error(
               tr(
                 language,
@@ -772,18 +790,26 @@ export function IdeasPage({
             <option value="evergreen">Evergreen</option>
             <option value="series">{tr(language, "Серии", "Series")}</option>
           </select>
-          <button
-            className={format === "long" ? "active" : ""}
-            onClick={() => setFormat("long")}
+          <div
+            className="filter-tabs idea-format"
+            role="group"
+            aria-label={tr(language, "Формат роликов", "Video format")}
           >
-            16:9 Long
-          </button>
-          <button
-            className={format === "shorts" ? "active" : ""}
-            onClick={() => setFormat("shorts")}
-          >
-            9:16 Shorts
-          </button>
+            <button
+              className={format === "long" ? "active" : ""}
+              aria-pressed={format === "long"}
+              onClick={() => setFormat("long")}
+            >
+              {tr(language, "Видео 16:9", "Video 16:9")}
+            </button>
+            <button
+              className={format === "shorts" ? "active" : ""}
+              aria-pressed={format === "shorts"}
+              onClick={() => setFormat("shorts")}
+            >
+              Shorts 9:16
+            </button>
+          </div>
           <button
             className="primary-button"
             disabled={loading}
@@ -888,6 +914,7 @@ function localDateTimeValue(iso: string): string {
 
 export function PlannerPage({
   language,
+  data,
   workspace,
   onWorkspace,
   onError,
@@ -1022,6 +1049,18 @@ export function PlannerPage({
           : item,
       ),
     }));
+  }
+
+  // Every goal unit is something the channel itself reports. Progress used to
+  // be typed in by hand even with the channel connected; it now follows the
+  // channel, and the manual field remains only while there is no data.
+  function liveGoalValue(unit: ChannelGoal["unit"]): number | null {
+    if (!data) return null;
+    return unit === "subscribers"
+      ? data.channel.subscribers
+      : unit === "views"
+        ? data.channel.views
+        : data.channel.videos;
   }
 
   async function addGoal(): Promise<void> {
@@ -1542,11 +1581,17 @@ export function PlannerPage({
           <div>
             <h3>{tr(language, "Цели канала", "Channel goals")}</h3>
             <p>
-              {tr(
-                language,
-                "Локальные цели с прозрачным ручным прогрессом",
-                "Local goals with transparent manual progress",
-              )}
+              {data
+                ? tr(
+                    language,
+                    "Прогресс считается по статистике канала и обновляется сам",
+                    "Progress follows your channel statistics automatically",
+                  )
+                : tr(
+                    language,
+                    "Пока канал не подключён, прогресс вводится вручную",
+                    "Enter progress manually until a channel is connected",
+                  )}
             </p>
           </div>
         </div>
@@ -1600,58 +1645,84 @@ export function PlannerPage({
           </p>
         )}
         <div className="goal-list">
-          {workspace.goals.map((goal) => (
-            <article key={goal.id}>
-              <div>
-                <strong>{goal.label}</strong>
-                <span>
-                  {compact(goal.current)} / {compact(goal.target)} ·{" "}
-                  {tr(
-                    language,
-                    goal.unit === "subscribers"
-                      ? "подписчики"
-                      : goal.unit === "views"
-                        ? "просмотры"
-                        : "видео",
-                    goal.unit,
-                  )}
-                </span>
-              </div>
-              <i>
-                <u
-                  style={{
-                    width: `${Math.min(100, goal.target > 0 ? (goal.current / goal.target) * 100 : 0)}%`,
-                  }}
-                />
-              </i>
-              <input
-                type="number"
-                min="0"
-                value={goal.current}
-                aria-label={tr(language, "Текущий прогресс", "Current progress")}
-                onChange={(event) => {
-                  const value = Math.max(0, Number(event.target.value));
-                  void onWorkspace((current) => ({
-                    ...current,
-                    goals: current.goals.map((item) =>
-                      item.id === goal.id ? { ...item, current: value } : item,
-                    ),
-                  }));
-                }}
-              />
-              <button
-                aria-label={tr(language, "Удалить цель", "Delete goal")}
-                onClick={() =>
-                  void onWorkspace((current) => ({
-                    ...current,
-                    goals: current.goals.filter((item) => item.id !== goal.id),
-                  }))
-                }
-              >
-                ×
-              </button>
-            </article>
-          ))}
+          {workspace.goals.map((goal) => {
+            const live = liveGoalValue(goal.unit);
+            const current = live ?? goal.current;
+            const progress =
+              goal.target > 0 ? Math.min(100, (current / goal.target) * 100) : 0;
+            const reached = goal.target > 0 && current >= goal.target;
+            return (
+              <article key={goal.id} className={reached ? "reached" : undefined}>
+                <div>
+                  <strong>{goal.label}</strong>
+                  <span>
+                    {compact(current)} / {compact(goal.target)} ·{" "}
+                    {tr(
+                      language,
+                      goal.unit === "subscribers"
+                        ? "подписчики"
+                        : goal.unit === "views"
+                          ? "просмотры"
+                          : "видео",
+                      goal.unit,
+                    )}{" "}
+                    ·{" "}
+                    {reached
+                      ? tr(language, "цель достигнута ✓", "goal reached ✓")
+                      : `${Math.floor(progress)}%`}
+                  </span>
+                </div>
+                <i
+                  role="progressbar"
+                  aria-label={goal.label}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.floor(progress)}
+                >
+                  <u style={{ width: `${progress}%` }} />
+                </i>
+                {live === null ? (
+                  <input
+                    type="number"
+                    min="0"
+                    value={goal.current}
+                    aria-label={tr(language, "Текущий прогресс", "Current progress")}
+                    onChange={(event) => {
+                      const value = Math.max(0, Number(event.target.value) || 0);
+                      void onWorkspace((current) => ({
+                        ...current,
+                        goals: current.goals.map((item) =>
+                          item.id === goal.id ? { ...item, current: value } : item,
+                        ),
+                      }));
+                    }}
+                  />
+                ) : (
+                  <em
+                    className="goal-live"
+                    title={tr(
+                      language,
+                      "Значение берётся из статистики канала",
+                      "Taken from your channel statistics",
+                    )}
+                  >
+                    {tr(language, "из канала", "from channel")}
+                  </em>
+                )}
+                <button
+                  aria-label={tr(language, "Удалить цель", "Delete goal")}
+                  onClick={() =>
+                    void onWorkspace((current) => ({
+                      ...current,
+                      goals: current.goals.filter((item) => item.id !== goal.id),
+                    }))
+                  }
+                >
+                  ×
+                </button>
+              </article>
+            );
+          })}
         </div>
       </section>
     </section>
@@ -2027,6 +2098,7 @@ export function CommentsPage({
             <button
               key={id}
               className={filter === id ? "active" : ""}
+              aria-pressed={filter === id}
               onClick={() => setFilter(id)}
             >
               {label}
@@ -2201,6 +2273,7 @@ export function SeoPage({ language, data }: Pick<PageProps, "language" | "data">
     : null;
   const passed = seo?.passed ?? 0;
   const measurable = seo?.checked ?? 0;
+  const checklistPercent = measurable ? Math.round((passed / measurable) * 100) : 0;
   const scoredFactors =
     performance?.factors.filter((factor) => factor.available).length ?? 0;
 
@@ -2342,8 +2415,13 @@ export function SeoPage({ language, data }: Pick<PageProps, "language" | "data">
                   )}
                 </p>
               </div>
-              <strong>
-                {measurable ? Math.round((passed / measurable) * 100) : 0}%
+              {/* Green whatever the score read "all good" at 50%. */}
+              <strong
+                className={
+                  checklistPercent >= 80 ? "" : checklistPercent >= 50 ? "warn" : "bad"
+                }
+              >
+                {checklistPercent}%
               </strong>
             </header>
             <div className="seo-check-list" role="list">
